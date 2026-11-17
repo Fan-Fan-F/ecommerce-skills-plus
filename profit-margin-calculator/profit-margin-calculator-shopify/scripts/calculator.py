@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-Amazon Profit Calculator - Core Engine
+Shopify DTC Profit Calculator - Core Engine
+Tailored for Direct-to-Consumer (DTC) e-commerce brands on Shopify.
 
 Features:
-- Cost breakdown calculation
-- Profit margin calculation (gross/net)
-- Break-even analysis
-- Pricing recommendations
-- Batch calculation support
+- DTC Unit economics (COGS, 3PL pick/pack, payment gateway, ad spend/CAC)
+- Shopify Payments fee calculation (2.9% + $0.30 standard)
+- Store subscription and app stack fee allocation
+- Break-even analysis and target margin pricing
+- Bilingual report generation (English and Chinese)
 
-Version: 1.0.0
+Version: 1.1.0 (Enhanced for Shopify DTC)
 """
 
 import json
@@ -22,127 +23,70 @@ import sys
 
 class ProfitStatus(Enum):
     HEALTHY = "healthy"      # >20% net margin
-    WARNING = "warning"      # 5-20% net margin
-    DANGER = "danger"        # <5% net margin
+    WARNING = "warning"      # 8-20% net margin
+    DANGER = "danger"        # 0-8% net margin
     LOSS = "loss"            # Negative margin
 
 
-# ============================================================
-# Amazon Referral Fee Rates (by category)
-# ============================================================
-
-REFERRAL_FEE_RATES = {
-    # Category: Rate
-    "default": 0.15,
-    "electronics": 0.08,
-    "computers": 0.08,
-    "camera": 0.08,
-    "video_games": 0.15,
-    "books": 0.15,
-    "clothing": 0.17,
-    "shoes": 0.15,
-    "jewelry": 0.20,
-    "watches": 0.15,
-    "furniture": 0.15,
-    "home": 0.15,
-    "kitchen": 0.15,
-    "beauty": 0.15,
-    "health": 0.15,
-    "grocery": 0.15,
-    "pet": 0.15,
-    "toys": 0.15,
-    "baby": 0.15,
-    "sports": 0.15,
-    "outdoors": 0.15,
-    "automotive": 0.12,
-    "industrial": 0.12,
-    "office": 0.15,
-}
-
-# FBA Fulfillment Fee Reference (simplified, based on size tier)
-FBA_FULFILLMENT_FEES = {
-    "small_standard": 3.22,      # Small standard (<1lb)
-    "large_standard_1lb": 4.75,  # Large standard (<1lb)
-    "large_standard_2lb": 5.40,  # Large standard (1-2lb)
-    "large_standard_3lb": 6.10,  # Large standard (2-3lb)
-    "small_oversize": 9.73,      # Small oversize
-    "medium_oversize": 19.05,    # Medium oversize
-    "large_oversize": 89.98,     # Large oversize
-}
-
-# Profit margin thresholds
 PROFIT_THRESHOLDS = {
-    "healthy": 0.20,    # >20%
-    "warning": 0.05,    # 5-20%
-    "danger": 0.00,     # 0-5%
+    "healthy": 0.20,
+    "warning": 0.08,
+    "danger": 0.00,
 }
 
 
-# ============================================================
-# Data Structures
-# ============================================================
-
 @dataclass
-class ProductInput:
-    """Single product input data"""
-    sku: str = "SKU001"
-    name: str = "Product"
-    
-    # Selling price
-    selling_price: float = 0.0
-    
-    # Cost items
-    product_cost: float = 0.0           # Product cost (FOB)
-    shipping_cost: float = 0.0          # Inbound shipping
-    fba_fulfillment_fee: float = 0.0    # FBA fulfillment fee
-    fba_storage_fee: float = 0.0        # FBA storage fee (monthly avg)
-    
-    # Optional costs
-    ad_spend_ratio: float = 0.0         # Ad spend ratio (0-1)
-    return_rate: float = 0.0            # Return rate (0-1)
-    return_processing_fee: float = 0.0  # Return processing fee per unit
-    other_fees: float = 0.0             # Other fees
-    
-    # Platform related
-    category: str = "default"           # Category (for Referral Fee)
-    referral_fee_rate: Optional[float] = None  # Custom commission rate
-    
-    # For batch calculation
-    monthly_sales: int = 0              # Monthly sales (for fixed cost allocation)
-    fixed_costs: float = 0.0            # Fixed costs (for break-even)
+class ShopifyProductInput:
+    """Shopify DTC Product input data"""
+    sku: str = "DTC001"
+    name: str = "Premium Leather Wallet"
+    selling_price: float = 49.99
+    product_cost: float = 12.00          # FOB manufacturing cost
+    inbound_shipping: float = 2.00       # Freight to domestic 3PL warehouse
+    fulfillment_fee: float = 5.50        # 3PL pick, pack & domestic shipping
+    storage_fee: float = 0.35            # Monthly 3PL warehousing per unit
+    payment_rate: float = 0.029          # Shopify Payments rate (2.9%)
+    payment_fixed: float = 0.30          # Gateway fixed fee ($0.30)
+    shopify_plan_fee: float = 0.50       # Shopify subscription & apps cost per unit
+    ad_spend_ratio: float = 0.22         # DTC Ad Spend (Meta/Google CAC ratio)
+    return_rate: float = 0.04            # Return rate (4%)
+    return_processing_fee: float = 3.50  # Return label & inspection
+    other_fees: float = 0.75             # Custom unboxing packaging, insert cards
+    monthly_sales: int = 500
+    fixed_costs: float = 0.0
 
 
 @dataclass
-class CostBreakdown:
-    """Cost breakdown"""
+class ShopifyCostBreakdown:
     selling_price: float
     product_cost: float
-    shipping_cost: float
-    fba_fulfillment_fee: float
-    fba_storage_fee: float
-    referral_fee: float
+    inbound_shipping: float
+    fulfillment_fee: float
+    storage_fee: float
+    payment_fee: float
+    shopify_plan_fee: float
     ad_cost: float
     return_cost: float
     other_fees: float
-    
     total_cost: float = 0.0
     gross_profit: float = 0.0
     net_profit: float = 0.0
     gross_margin: float = 0.0
     net_margin: float = 0.0
-    
+
     def __post_init__(self):
         self.total_cost = (
             self.product_cost +
-            self.shipping_cost +
-            self.fba_fulfillment_fee +
-            self.fba_storage_fee +
-            self.referral_fee +
+            self.inbound_shipping +
+            self.fulfillment_fee +
+            self.storage_fee +
+            self.payment_fee +
+            self.shopify_plan_fee +
             self.ad_cost +
             self.return_cost +
             self.other_fees
         )
-        self.gross_profit = self.selling_price - self.product_cost - self.shipping_cost - self.fba_fulfillment_fee - self.referral_fee
+        self.gross_profit = self.selling_price - self.product_cost - self.inbound_shipping - self.fulfillment_fee
         self.net_profit = self.selling_price - self.total_cost
         self.gross_margin = self.gross_profit / self.selling_price if self.selling_price > 0 else 0
         self.net_margin = self.net_profit / self.selling_price if self.selling_price > 0 else 0
@@ -150,99 +94,73 @@ class CostBreakdown:
 
 @dataclass
 class BreakEvenAnalysis:
-    """Break-even analysis"""
-    min_price: float              # Minimum price (break-even)
-    break_even_units: int         # Break-even units
-    safety_margin: float          # Safety margin
-    current_margin_above_min: float  # Current price above minimum
+    min_price: float
+    break_even_units: int
+    safety_margin: float
+    current_margin_above_min: float
 
 
 @dataclass
 class PricingSuggestion:
-    """Pricing recommendation"""
-    target_margin: float          # Target profit margin
-    suggested_price: float        # Suggested price
-    profit_per_unit: float        # Profit per unit
+    target_margin: float
+    suggested_price: float
+    profit_per_unit: float
 
 
 @dataclass
-class AnalysisResult:
-    """Complete analysis result"""
-    product: ProductInput
-    cost_breakdown: CostBreakdown
+class ShopifyAnalysisResult:
+    product: ShopifyProductInput
+    cost_breakdown: ShopifyCostBreakdown
     break_even: BreakEvenAnalysis
     pricing_suggestions: List[PricingSuggestion]
     status: ProfitStatus
     summary: str
 
 
-# ============================================================
-# Core Calculation Functions
-# ============================================================
-
-def get_referral_fee_rate(category: str, custom_rate: Optional[float] = None) -> float:
-    """Get Referral Fee rate"""
-    if custom_rate is not None:
-        return custom_rate
-    return REFERRAL_FEE_RATES.get(category.lower(), REFERRAL_FEE_RATES["default"])
-
-
-def calculate_costs(product: ProductInput) -> CostBreakdown:
-    """Calculate cost breakdown"""
-    # Referral Fee
-    referral_rate = get_referral_fee_rate(product.category, product.referral_fee_rate)
-    referral_fee = product.selling_price * referral_rate
-    
-    # Ad cost
+def calculate_costs(product: ShopifyProductInput) -> ShopifyCostBreakdown:
+    payment_fee = product.selling_price * product.payment_rate + product.payment_fixed
     ad_cost = product.selling_price * product.ad_spend_ratio
-    
-    # Return cost = return rate × (processing fee + product cost loss ratio)
     return_cost = product.return_rate * (product.return_processing_fee + product.product_cost * 0.5)
-    
-    return CostBreakdown(
+
+    return ShopifyCostBreakdown(
         selling_price=product.selling_price,
         product_cost=product.product_cost,
-        shipping_cost=product.shipping_cost,
-        fba_fulfillment_fee=product.fba_fulfillment_fee,
-        fba_storage_fee=product.fba_storage_fee,
-        referral_fee=round(referral_fee, 2),
+        inbound_shipping=product.inbound_shipping,
+        fulfillment_fee=product.fulfillment_fee,
+        storage_fee=product.storage_fee,
+        payment_fee=round(payment_fee, 2),
+        shopify_plan_fee=product.shopify_plan_fee,
         ad_cost=round(ad_cost, 2),
         return_cost=round(return_cost, 2),
-        other_fees=product.other_fees
+        other_fees=product.other_fees,
     )
 
 
-def calculate_break_even(product: ProductInput, costs: CostBreakdown) -> BreakEvenAnalysis:
-    """Calculate break-even point"""
-    # Variable cost (per unit)
-    variable_cost = (
+def calculate_break_even(product: ShopifyProductInput, costs: ShopifyCostBreakdown) -> BreakEvenAnalysis:
+    fixed_unit_cost = (
         product.product_cost +
-        product.shipping_cost +
-        product.fba_fulfillment_fee +
-        product.fba_storage_fee +
-        costs.referral_fee +
-        costs.return_cost +
-        product.other_fees
+        product.inbound_shipping +
+        product.fulfillment_fee +
+        product.storage_fee +
+        product.payment_fixed +
+        product.shopify_plan_fee +
+        product.other_fees +
+        costs.return_cost
     )
-    
-    # Minimum price (cover variable cost + ad spend)
-    # Ad ratio unchanged: min_price - variable_cost - min_price * ad_ratio = 0
-    # min_price * (1 - ad_ratio) = variable_cost
-    if product.ad_spend_ratio < 1:
-        min_price = variable_cost / (1 - product.ad_spend_ratio)
+    denominator = 1 - product.payment_rate - product.ad_spend_ratio
+    if denominator > 0:
+        min_price = fixed_unit_cost / denominator
     else:
-        min_price = variable_cost * 2  # Abnormal case
-    
-    # Break-even units (if fixed costs exist)
+        min_price = fixed_unit_cost * 2
+
     if product.fixed_costs > 0 and costs.net_profit > 0:
         break_even_units = int(product.fixed_costs / costs.net_profit) + 1
     else:
         break_even_units = 0
-    
-    # Safety margin
+
     safety_margin = (product.selling_price - min_price) / product.selling_price if product.selling_price > 0 else 0
     margin_above_min = (product.selling_price - min_price) / min_price if min_price > 0 else 0
-    
+
     return BreakEvenAnalysis(
         min_price=round(min_price, 2),
         break_even_units=break_even_units,
@@ -251,296 +169,207 @@ def calculate_break_even(product: ProductInput, costs: CostBreakdown) -> BreakEv
     )
 
 
-def calculate_pricing_suggestions(product: ProductInput, target_margins: List[float] = None) -> List[PricingSuggestion]:
-    """Calculate pricing recommendations"""
+def calculate_pricing_suggestions(product: ShopifyProductInput, target_margins: List[float] = None) -> List[PricingSuggestion]:
     if target_margins is None:
         target_margins = [0.15, 0.20, 0.25, 0.30]
-    
-    suggestions = []
-    
-    # Base cost (excluding Referral Fee and ad cost as they're % of price)
-    base_cost = (
+
+    return_cost = product.return_rate * (product.return_processing_fee + product.product_cost * 0.5)
+    fixed_unit_cost = (
         product.product_cost +
-        product.shipping_cost +
-        product.fba_fulfillment_fee +
-        product.fba_storage_fee +
+        product.inbound_shipping +
+        product.fulfillment_fee +
+        product.storage_fee +
+        product.payment_fixed +
+        product.shopify_plan_fee +
         product.other_fees +
-        product.return_rate * product.return_processing_fee
+        return_cost
     )
-    
-    referral_rate = get_referral_fee_rate(product.category, product.referral_fee_rate)
-    
-    for target_margin in target_margins:
-        # Target: net_profit / selling_price = target_margin
-        # net_profit = selling_price - base_cost - selling_price * referral_rate - selling_price * ad_ratio
-        # selling_price * target_margin = selling_price - base_cost - selling_price * (referral_rate + ad_ratio)
-        # selling_price * (target_margin + referral_rate + ad_ratio - 1) = -base_cost
-        # selling_price = base_cost / (1 - target_margin - referral_rate - ad_ratio)
-        
-        denominator = 1 - target_margin - referral_rate - product.ad_spend_ratio
+
+    suggestions = []
+    for target in target_margins:
+        denominator = 1 - target - product.payment_rate - product.ad_spend_ratio
         if denominator > 0:
-            suggested_price = base_cost / denominator
-            profit_per_unit = suggested_price * target_margin
-            
+            suggested_price = fixed_unit_cost / denominator
             suggestions.append(PricingSuggestion(
-                target_margin=target_margin,
+                target_margin=target,
                 suggested_price=round(suggested_price, 2),
-                profit_per_unit=round(profit_per_unit, 2)
+                profit_per_unit=round(suggested_price * target, 2)
             ))
-    
     return suggestions
 
 
 def evaluate_profit_status(net_margin: float) -> ProfitStatus:
-    """Evaluate profit status"""
     if net_margin < 0:
         return ProfitStatus.LOSS
     elif net_margin < PROFIT_THRESHOLDS["warning"]:
         return ProfitStatus.DANGER
     elif net_margin < PROFIT_THRESHOLDS["healthy"]:
         return ProfitStatus.WARNING
-    else:
-        return ProfitStatus.HEALTHY
+    return ProfitStatus.HEALTHY
 
 
-def analyze_product(product: ProductInput, target_margins: List[float] = None) -> AnalysisResult:
-    """Analyze single product"""
+def analyze_product(product: ShopifyProductInput, target_margins: List[float] = None) -> ShopifyAnalysisResult:
     costs = calculate_costs(product)
-    break_even = calculate_break_even(product, costs)
+    be = calculate_break_even(product, costs)
     pricing = calculate_pricing_suggestions(product, target_margins)
     status = evaluate_profit_status(costs.net_margin)
-    
-    # Generate summary
-    status_text = {
-        ProfitStatus.HEALTHY: "✅ Healthy",
-        ProfitStatus.WARNING: "⚠️ Warning",
-        ProfitStatus.DANGER: "🔴 Danger",
-        ProfitStatus.LOSS: "💀 Loss",
-    }
-    summary = f"{status_text[status]} | Net Margin {costs.net_margin*100:.1f}% | Profit/Unit ${costs.net_profit:.2f}"
-    
-    return AnalysisResult(
+    summary = f"Net Margin {costs.net_margin*100:.1f}% | Profit/Unit ${costs.net_profit:.2f}"
+    return ShopifyAnalysisResult(
         product=product,
         cost_breakdown=costs,
-        break_even=break_even,
+        break_even=be,
         pricing_suggestions=pricing,
         status=status,
         summary=summary
     )
 
 
-def analyze_batch(products: List[ProductInput], target_margins: List[float] = None) -> List[AnalysisResult]:
-    """Batch analysis"""
-    return [analyze_product(p, target_margins) for p in products]
-
-
-# ============================================================
-# Output Formatting
-# ============================================================
-
-def format_cost_breakdown(costs: CostBreakdown) -> str:
-    """Format cost breakdown"""
-    def pct(val):
-        return f"{val/costs.selling_price*100:.1f}%" if costs.selling_price > 0 else "0%"
-    
-    lines = [
-        f"Selling Price         ${costs.selling_price:.2f}   100%",
-        "─" * 40,
-        f"Product Cost          -${costs.product_cost:.2f}    {pct(costs.product_cost)}",
-        f"Inbound Shipping      -${costs.shipping_cost:.2f}    {pct(costs.shipping_cost)}",
-        f"FBA Fulfillment       -${costs.fba_fulfillment_fee:.2f}    {pct(costs.fba_fulfillment_fee)}",
-        f"FBA Storage           -${costs.fba_storage_fee:.2f}    {pct(costs.fba_storage_fee)}",
-        f"Referral Fee          -${costs.referral_fee:.2f}    {pct(costs.referral_fee)}",
-        f"Advertising           -${costs.ad_cost:.2f}    {pct(costs.ad_cost)}",
-        f"Returns               -${costs.return_cost:.2f}    {pct(costs.return_cost)}",
-        f"Other Fees            -${costs.other_fees:.2f}    {pct(costs.other_fees)}",
-        "─" * 40,
-        f"Total Cost            ${costs.total_cost:.2f}    {pct(costs.total_cost)}",
-        f"Net Profit            ${costs.net_profit:.2f}    {costs.net_margin*100:.1f}%",
-    ]
-    return "\n".join(lines)
-
-
-def format_break_even(be: BreakEvenAnalysis, current_price: float) -> str:
-    """Format break-even analysis"""
-    lines = [
-        f"Break-even Price: ${be.min_price:.2f}",
-        f"├── Below this price = Loss",
-        f"",
-        f"Current Price: ${current_price:.2f}",
-        f"├── {be.current_margin_above_min*100:.1f}% above break-even",
-        f"",
-        f"Safety Margin: {be.safety_margin*100:.1f}%",
-        f"├── Room for price reduction",
-    ]
-    if be.break_even_units > 0:
-        lines.extend([
-            f"",
-            f"Break-even Units: {be.break_even_units}",
-            f"├── Units needed to cover fixed costs",
-        ])
-    return "\n".join(lines)
-
-
-def format_pricing_suggestions(suggestions: List[PricingSuggestion], current_price: float, current_margin: float) -> str:
-    """Format pricing recommendations"""
-    lines = [
-        "| Target Margin | Recommended Price | Profit/Unit |",
-        "|---------------|-------------------|-------------|",
-    ]
-    for s in suggestions:
-        lines.append(f"| {s.target_margin*100:.0f}% | ${s.suggested_price:.2f} | ${s.profit_per_unit:.2f} |")
-    
-    lines.append(f"\nCurrent Price ${current_price:.2f} → Net Margin {current_margin*100:.1f}%")
-    return "\n".join(lines)
-
-
-def format_full_report(result: AnalysisResult) -> str:
-    """Generate full report"""
+def format_report(result: ShopifyAnalysisResult, lang: str = "en") -> str:
     status_icons = {
         ProfitStatus.HEALTHY: "✅",
         ProfitStatus.WARNING: "⚠️",
         ProfitStatus.DANGER: "🔴",
         ProfitStatus.LOSS: "💀",
     }
-    
-    report = f"""
-💰 **Amazon Profit Analysis Report**
+    c = result.cost_breakdown
+    be = result.break_even
+    sp = c.selling_price if c.selling_price > 0 else 1.0
 
-**Product**: {result.product.name} ({result.product.sku})
-**Status**: {status_icons[result.status]} {result.summary}
+    if lang == "zh":
+        status_text_zh = {
+            ProfitStatus.HEALTHY: "健康良好",
+            ProfitStatus.WARNING: "中度预警",
+            ProfitStatus.DANGER: "低利危险",
+            ProfitStatus.LOSS: "严重亏损",
+        }
+        status_str = f"{status_icons[result.status]} {status_text_zh[result.status]} | 净利率 {c.net_margin*100:.1f}% | 单件净利 ${c.net_profit:.2f}"
+
+        suggestions_lines = [
+            "| 目标净利率 | 建议零售价 | 单件净利润 |",
+            "|------------|------------|------------|",
+        ]
+        for s in result.pricing_suggestions:
+            suggestions_lines.append(f"| {s.target_margin*100:.0f}% | ${s.suggested_price:.2f} | ${s.profit_per_unit:.2f} |")
+
+        return f"""
+🛍️ **Shopify DTC 独立站利润与保本分析报告**
+
+**商品**: {result.product.name} ({result.product.sku})
+**状态**: {status_str}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📊 **Cost Breakdown**
+📊 **成本结构明细 (DTC Unit Economics)**
 
 ```
-{format_cost_breakdown(result.cost_breakdown)}
+商品零售价 (AOV)         ${c.selling_price:.2f}   100.0%
+────────────────────────────────────────
+商品采购成本 (COGS)       -${c.product_cost:.2f}    {c.product_cost/sp*100:.1f}%
+头程干线运费 (Inbound)    -${c.inbound_shipping:.2f}     {c.inbound_shipping/sp*100:.1f}%
+3PL 仓配履约 (Pick&Pack) -${c.fulfillment_fee:.2f}    {c.fulfillment_fee/sp*100:.1f}%
+3PL 仓储租金 (Storage)   -${c.storage_fee:.2f}     {c.storage_fee/sp*100:.1f}%
+支付网关手续费 (Stripe)   -${c.payment_fee:.2f}     {c.payment_fee/sp*100:.1f}%
+Shopify月租与SaaS分摊    -${c.shopify_plan_fee:.2f}     {c.shopify_plan_fee/sp*100:.1f}%
+Meta/Google广告费 (CAC)   -${c.ad_cost:.2f}    {c.ad_cost/sp*100:.1f}%
+退换货成本损耗 (Returns)  -${c.return_cost:.2f}     {c.return_cost/sp*100:.1f}%
+品牌包装与卡片 (Unboxing) -${c.other_fees:.2f}     {c.other_fees/sp*100:.1f}%
+────────────────────────────────────────
+总营业成本 (Total Cost)   ${c.total_cost:.2f}    {c.total_cost/sp*100:.1f}%
+实际净利润 (Net Profit)   ${c.net_profit:.2f}    {c.net_margin*100:.1f}%
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📈 **保本点分析 (Break-Even)**
+
+保本售价: ${be.min_price:.2f} (低于此售价将亏损)
+当前售价: ${c.selling_price:.2f} (高于保本价 {be.current_margin_above_min*100:.1f}%)
+安全边际率: {be.safety_margin*100:.1f}% (降价促销缓冲空间)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 **目标净利率定价建议**
+
+{chr(10).join(suggestions_lines)}
+"""
+
+    status_str = f"{status_icons[result.status]} {result.status.value.title()} | Net Margin {c.net_margin*100:.1f}% | Profit/Unit ${c.net_profit:.2f}"
+    suggestions_lines = [
+        "| Target Margin | Recommended Price | Profit/Unit |",
+        "|---------------|-------------------|-------------|",
+    ]
+    for s in result.pricing_suggestions:
+        suggestions_lines.append(f"| {s.target_margin*100:.0f}% | ${s.suggested_price:.2f} | ${s.profit_per_unit:.2f} |")
+
+    return f"""
+🛍️ **Shopify DTC Profit Analysis Report**
+
+**Product**: {result.product.name} ({result.product.sku})
+**Status**: {status_str}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 **Cost Breakdown (DTC Unit Economics)**
+
+```
+Selling Price (AOV)     ${c.selling_price:.2f}   100.0%
+────────────────────────────────────────
+Product Cost (COGS)     -${c.product_cost:.2f}    {c.product_cost/sp*100:.1f}%
+Inbound Shipping        -${c.inbound_shipping:.2f}     {c.inbound_shipping/sp*100:.1f}%
+3PL Pick & Pack         -${c.fulfillment_fee:.2f}    {c.fulfillment_fee/sp*100:.1f}%
+3PL Storage Fee         -${c.storage_fee:.2f}     {c.storage_fee/sp*100:.1f}%
+Payment Gateway Fee     -${c.payment_fee:.2f}     {c.payment_fee/sp*100:.1f}%
+Shopify Plan & Apps     -${c.shopify_plan_fee:.2f}     {c.shopify_plan_fee/sp*100:.1f}%
+Ad Spend / CAC          -${c.ad_cost:.2f}    {c.ad_cost/sp*100:.1f}%
+Returns & Damages       -${c.return_cost:.2f}     {c.return_cost/sp*100:.1f}%
+Packaging & Inserts     -${c.other_fees:.2f}     {c.other_fees/sp*100:.1f}%
+────────────────────────────────────────
+Total Cost              ${c.total_cost:.2f}    {c.total_cost/sp*100:.1f}%
+Net Profit              ${c.net_profit:.2f}    {c.net_margin*100:.1f}%
 ```
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📈 **Break-Even Analysis**
 
-{format_break_even(result.break_even, result.product.selling_price)}
+Break-even Price: ${be.min_price:.2f}
+Current Price: ${c.selling_price:.2f} ({be.current_margin_above_min*100:.1f}% above break-even)
+Safety Margin: {be.safety_margin*100:.1f}%
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 💡 **Pricing Recommendations**
 
-{format_pricing_suggestions(result.pricing_suggestions, result.product.selling_price, result.cost_breakdown.net_margin)}
-
+{chr(10).join(suggestions_lines)}
 """
-    return report
 
-
-def format_batch_summary(results: List[AnalysisResult]) -> str:
-    """Format batch analysis summary"""
-    status_icons = {
-        ProfitStatus.HEALTHY: "✅",
-        ProfitStatus.WARNING: "⚠️",
-        ProfitStatus.DANGER: "🔴",
-        ProfitStatus.LOSS: "💀",
-    }
-    
-    lines = [
-        "📊 **Batch Analysis Summary**",
-        "",
-        "| SKU | Price | Total Cost | Net Profit | Margin | Status |",
-        "|-----|-------|------------|------------|--------|--------|",
-    ]
-    
-    total_profit = 0
-    for r in results:
-        c = r.cost_breakdown
-        icon = status_icons[r.status]
-        lines.append(f"| {r.product.sku} | ${c.selling_price:.2f} | ${c.total_cost:.2f} | ${c.net_profit:.2f} | {c.net_margin*100:.1f}% | {icon} |")
-        total_profit += c.net_profit
-    
-    lines.append("")
-    lines.append(f"**Total**: {len(results)} SKUs | Avg Profit/Unit ${total_profit/len(results):.2f}")
-    
-    # Statistics
-    healthy = sum(1 for r in results if r.status == ProfitStatus.HEALTHY)
-    warning = sum(1 for r in results if r.status == ProfitStatus.WARNING)
-    danger = sum(1 for r in results if r.status == ProfitStatus.DANGER)
-    loss = sum(1 for r in results if r.status == ProfitStatus.LOSS)
-    
-    lines.append(f"**Status Distribution**: ✅ {healthy} | ⚠️ {warning} | 🔴 {danger} | 💀 {loss}")
-    
-    return "\n".join(lines)
-
-
-# ============================================================
-# CSV Batch Processing
-# ============================================================
-
-def parse_csv(csv_content: str) -> List[ProductInput]:
-    """Parse CSV content"""
-    products = []
-    reader = csv.DictReader(csv_content.strip().split('\n'))
-    
-    for row in reader:
-        product = ProductInput(
-            sku=row.get('sku', 'SKU'),
-            name=row.get('name', 'Product'),
-            selling_price=float(row.get('selling_price', 0)),
-            product_cost=float(row.get('product_cost', 0)),
-            shipping_cost=float(row.get('shipping_cost', 0)),
-            fba_fulfillment_fee=float(row.get('fba_fee', 0)),
-            fba_storage_fee=float(row.get('storage_fee', 0)),
-            ad_spend_ratio=float(row.get('ad_ratio', 0)),
-            return_rate=float(row.get('return_rate', 0)),
-            return_processing_fee=float(row.get('return_fee', 0)),
-            other_fees=float(row.get('other_fees', 0)),
-            category=row.get('category', 'default'),
-        )
-        products.append(product)
-    
-    return products
-
-
-# ============================================================
-# CLI Entry Point
-# ============================================================
 
 def main():
-    """Command line entry"""
-    # Default test data
-    test_product = ProductInput(
-        sku="TEST001",
-        name="Kitchen Gadget",
-        selling_price=29.99,
-        product_cost=6.00,
-        shipping_cost=1.50,
-        fba_fulfillment_fee=5.50,
-        fba_storage_fee=0.30,
-        ad_spend_ratio=0.10,
-        return_rate=0.03,
-        return_processing_fee=2.00,
-        other_fees=0.50,
-        category="kitchen",
-    )
-    
-    # If JSON input provided
-    if len(sys.argv) > 1:
+    args = sys.argv[1:]
+    lang = "zh" if "--zh" in args else "en"
+    args = [a for a in args if a != "--zh"]
+
+    if "--help" in args or "-h" in args:
+        print("""Usage: python3 calculator.py [OPTIONS] [JSON_STRING]
+Options:
+  --demo            Run standard Shopify DTC demo product
+  --zh              Output report in Chinese
+  --json <string>   Pass JSON object with Shopify parameters
+  --help, -h        Show this help message
+""")
+        return
+
+    test_product = ShopifyProductInput()
+    if len(args) > 0 and args[0] != "--demo":
         try:
-            input_data = json.loads(sys.argv[1])
-            if isinstance(input_data, list):
-                # Batch mode
-                products = [ProductInput(**p) for p in input_data]
-                results = analyze_batch(products)
-                print(format_batch_summary(results))
-                return
-            else:
-                test_product = ProductInput(**input_data)
+            data = json.loads(args[0])
+            test_product = ShopifyProductInput(**data)
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error parsing JSON input: {e}")
             sys.exit(1)
-    
-    # Single product analysis
+
     result = analyze_product(test_product)
-    print(format_full_report(result))
+    print(format_report(result, lang=lang))
 
 
 if __name__ == "__main__":

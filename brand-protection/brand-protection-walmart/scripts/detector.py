@@ -141,9 +141,9 @@ def detect_hijackers(brand: BrandInfo, listing: ListingInfo) -> List[Violation]:
                 f"Price: ${seller.price}",
             ],
             description=f"Unauthorized seller '{seller.seller_name}' found on your listing",
-            description_zh=f"FoundnotAuthorizedSeller '{seller.seller_name}'  in you Listing  above Sale",
+            description_zh=f"发现未经授权的跟卖卖家 '{seller.seller_name}' 正在跟卖抢占 Listing",
             recommended_action="File Brand Registry complaint or send cease & desist",
-            recommended_action_zh="Pass Brand Registry Complaint or cease and desist letter",
+            recommended_action_zh="通过品牌注册通道 (Brand Registry) 投诉举报或发送停终侵权函 (Cease & Desist)",
         ))
     
     return violations
@@ -172,9 +172,9 @@ def detect_price_violations(brand: BrandInfo, listing: ListingInfo) -> List[Viol
                     f"Discount: {discount:.1f}% below minimum",
                 ],
                 description=f"Seller '{seller.seller_name}' selling {discount:.1f}% below MAP",
-                description_zh=f"Seller '{seller.seller_name}' Selling Price low  at  MAP {discount:.1f}%",
+                description_zh=f"卖家 '{seller.seller_name}' 售价低于最低限价 (MAP) {discount:.1f}%",
                 recommended_action="Send MAP violation notice, consider distribution review",
-                recommended_action_zh="Send MAP Violation notice，ConsiderReviewDistributionChannel",
+                recommended_action_zh="发送限价违规通知函，核查渠道授权与窜货违规",
             ))
     
     return violations
@@ -188,7 +188,7 @@ def detect_counterfeit_signals(listing: ListingInfo, reviews: List[Dict] = None)
     counterfeit_keywords = [
         "fake", "counterfeit", "not genuine", "knockoff", "replica",
         "poor quality", "not authentic", "cheap copy", "different from picture",
-        "Counterfeit", "fake", "Imitation", "Knockoff", "Poor quality", "AndImageDifferent",
+        "假货", "仿冒", "山寨", "劣质", "与图片不符", "高仿", "做工粗糙",
     ]
     
     if reviews:
@@ -210,9 +210,9 @@ def detect_counterfeit_signals(listing: ListingInfo, reviews: List[Dict] = None)
                     "Sample keywords: " + ", ".join(counterfeit_keywords[:5]),
                 ],
                 description=f"Multiple reviews indicate potential counterfeit products",
-                description_zh=f" many itemReviewmention and Counterfeit/Imitation，ExistCounterfeitRisk",
+                description_zh=f"多条买家评价提及假冒伪劣/山寨仿品，存在严重侵权风险",
                 recommended_action="Initiate Test Buy to collect physical evidence",
-                recommended_action_zh="Proceed Test Buy Test purchase to collect physical evidence",
+                recommended_action_zh="启动官方试购 (Test Buy) 流程，固定实物取证并向平台立案",
             ))
     
     return violations
@@ -246,9 +246,9 @@ def detect_trademark_abuse(brand: BrandInfo, listing: ListingInfo) -> List[Viola
                     f"Full title: {listing.title}",
                 ],
                 description=f"Potential trademark abuse in listing title",
-                description_zh=f"Listing Title may contain trademark abuse",
+                description_zh=f"商品标题涉嫌存在商标侵权或违规搭便车滥用",
                 recommended_action="File trademark complaint if unauthorized use",
-                recommended_action_zh=" such as notAuthorizedUse，SubmitTrademarkInfringementComplaint",
+                recommended_action_zh="若未获合法授权，向平台提交商标侵权纠纷投诉",
             ))
             break
     
@@ -292,65 +292,65 @@ def generate_action_plan(violations: List[Violation], brand: BrandInfo) -> List[
     counterfeits = [v for v in violations if v.violation_type == ViolationType.COUNTERFEIT]
     price_violations = [v for v in violations if v.violation_type == ViolationType.PRICE_VIOLATION]
     
-    # HijackingProcess
+    # Hijacking Process
     if hijackers:
         if brand.brand_registry:
             actions.append({
                 "priority": "1",
                 "action": "Report via Brand Registry",
-                "action_zh": "Pass Brand Registry Complaint",
+                "action_zh": "通过品牌备案通道 (Brand Registry) 举报跟卖",
                 "detail": f"Report {len(hijackers)} unauthorized seller(s) via Amazon Brand Registry portal",
-                "detail_zh": f"Pass Amazon Brand Registry PortalComplaint {len(hijackers)} notAuthorizedSeller",
+                "detail_zh": f"通过平台官方 Brand Registry 侵权举报门户举报 {len(hijackers)} 个未授权跟卖卖家",
                 "timeline": "24-48 hours",
             })
         else:
             actions.append({
                 "priority": "1",
                 "action": "Send Cease & Desist",
-                "action_zh": "SendStopInfringementLetter",
+                "action_zh": "发送律师侵权告知函 (Cease & Desist)",
                 "detail": "Contact sellers directly with legal notice",
-                "detail_zh": "Direct contactSellerSend legal letter",
+                "detail_zh": "直接联系违规卖家后台并发送正式停终侵权警告信",
                 "timeline": "3-5 business days",
             })
     
-    # CounterfeitProcess
+    # Counterfeit Process
     if counterfeits:
         actions.append({
             "priority": "1",
             "action": "Initiate Test Buy",
-            "action_zh": "Proceed Test Buy",
+            "action_zh": "启动官方试购 (Test Buy 取证)",
             "detail": "Purchase product from suspected seller to collect physical evidence",
-            "detail_zh": " from SuspiciousSeller at PurchaseProductCollectPhysicalEvidence",
+            "detail_zh": "从可疑跟卖店铺下单购买实物，拍照并留存发票与包装实物证据",
             "timeline": "7-14 days",
         })
         actions.append({
             "priority": "2",
             "action": "File Counterfeit Report",
-            "action_zh": "SubmitCounterfeitComplaint",
+            "action_zh": "提交平台假冒仿品纠纷投诉",
             "detail": "Submit counterfeit complaint with evidence to Amazon",
-            "detail_zh": " to  Amazon Submit counterfeit complaint and evidence",
+            "detail_zh": "将试购实物对比照片与商标证书一并提交平台举报封禁",
             "timeline": "After test buy",
         })
     
-    # PriceViolationProcess
+    # Price Violation Process
     if price_violations:
         actions.append({
             "priority": "2",
             "action": "Send MAP Violation Notice",
-            "action_zh": "Send MAP Violation notice",
+            "action_zh": "发送最低控价 (MAP) 违规整改通知函",
             "detail": f"Notify {len(price_violations)} seller(s) of MAP policy violation",
-            "detail_zh": f"Notification {len(price_violations)} Seller MAP Policy violation",
+            "detail_zh": f"向 {len(price_violations)} 家违规降价卖家发送通告，限期纠正价格",
             "timeline": "48-72 hours",
         })
     
-    # GeneralRecommendation
+    # General Recommendation
     if not brand.brand_registry and violations:
         actions.append({
             "priority": "3",
             "action": "Enroll in Brand Registry",
-            "action_zh": "Register Brand Registry",
+            "action_zh": "完成品牌官方备案 (Brand Registry)",
             "detail": "Get enhanced brand protection tools from Amazon",
-            "detail_zh": "Get Amazon EnhanceBrand ProtectionTool",
+            "detail_zh": "通过官方备案解锁防跟卖与极速下架等核心知识产权保护工具",
             "timeline": "2-4 weeks (requires trademark)",
         })
     
@@ -358,7 +358,7 @@ def generate_action_plan(violations: List[Violation], brand: BrandInfo) -> List[
 
 
 # ============================================================
-# MainDetectionFunction
+# Main Detection Function
 # ============================================================
 
 def detect(
@@ -366,7 +366,7 @@ def detect(
     listings: List[ListingInfo],
     reviews: Dict[str, List[Dict]] = None
 ) -> DetectionResult:
-    """MainDetectionFunction"""
+    """Main Detection Function"""
     
     all_violations = []
     
@@ -374,41 +374,41 @@ def detect(
         # Hijacker Detection
         all_violations.extend(detect_hijackers(brand, listing))
         
-        # PriceViolationDetection
+        # Price Violation Detection
         all_violations.extend(detect_price_violations(brand, listing))
         
-        # TrademarkAbuseDetection
+        # Trademark Abuse Detection
         all_violations.extend(detect_trademark_abuse(brand, listing))
         
-        # Counterfeit SignalsDetection
+        # Counterfeit Signals Detection
         if reviews and listing.asin in reviews:
             all_violations.extend(detect_counterfeit_signals(listing, reviews[listing.asin]))
     
-    # CalculateRiskRating
+    # Calculate Risk Rating
     risk_score, risk_level = calculate_risk_score(all_violations)
     
-    # GenerateAction Plan
+    # Generate Action Plan
     action_plan = generate_action_plan(all_violations, brand)
     
-    # GenerateSummary
+    # Generate Summary
     hijacker_count = len([v for v in all_violations if v.violation_type == ViolationType.HIJACKER])
     counterfeit_count = len([v for v in all_violations if v.violation_type == ViolationType.COUNTERFEIT])
     
     if risk_level == RiskLevel.CRITICAL:
         status = "🚨 CRITICAL"
-        status_zh = "🚨 CriticalRisk"
+        status_zh = "🚨 极高侵权风险"
     elif risk_level == RiskLevel.HIGH:
         status = "🔴 HIGH RISK"
-        status_zh = "🔴 High Risk"
+        status_zh = "🔴 高风险侵权"
     elif risk_level == RiskLevel.MEDIUM:
         status = "⚠️ MEDIUM RISK"
-        status_zh = "⚠️  in  etcRisk"
+        status_zh = "⚠️ 中度风险"
     else:
         status = "✅ LOW RISK"
-        status_zh = "✅ Low Risk"
+        status_zh = "✅ 低风险 (品牌状态良好)"
     
     summary = f"{status} | {len(all_violations)} violation(s) found | {hijacker_count} hijacker(s), {counterfeit_count} counterfeit signal(s)"
-    summary_zh = f"{status_zh} | Found {len(all_violations)} Infringement | {hijacker_count} Hijacking, {counterfeit_count} Counterfeit Signals"
+    summary_zh = f"{status_zh} | 共发现 {len(all_violations)} 项侵权违规 | 疑似跟卖 {hijacker_count} 家，假货仿品隐患 {counterfeit_count} 起"
     
     return DetectionResult(
         brand=brand,
@@ -424,57 +424,57 @@ def detect(
 
 
 # ============================================================
-# OutputFormat
+# Output Format
 # ============================================================
 
 def format_report(result: DetectionResult, lang: str = "en") -> str:
-    """FormatReport"""
+    """Format Report"""
     b = result.brand
     
     if lang == "zh":
         lines = [
-            "🛡️ **Brand ProtectionDetectionReport**",
+            "🛡️ **品牌维权与防跟卖检测报告**",
             "",
-            f"**Brand**: {b.brand_name}",
-            f"**Brand Registry**: {'✅  already Register' if b.brand_registry else '❌ notRegister'}",
-            f"**ScanTime**: {result.scan_time[:19]}",
-            f"**Scan ASIN **: {result.total_asins_scanned}",
+            f"**品牌名称**: {b.brand_name}",
+            f"**官方品牌备案**: {'✅ 已备案 (Brand Registry)' if b.brand_registry else '❌ 未备案'}",
+            f"**扫描时间**: {result.scan_time[:19]}",
+            f"**扫描 ASIN 数量**: {result.total_asins_scanned}",
             "",
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             "",
-            f"## 🎯 RiskRating: {result.risk_score}/100",
+            f"## 🎯 品牌风险指数: {result.risk_score}/100",
             "",
             result.summary_zh,
             "",
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             "",
-            "## ⚠️ InfringementDetails",
+            "## ⚠️ 侵权与违规线索详情",
             "",
         ]
         
         if not result.violations:
-            lines.append("✅ No infringement found")
+            lines.append("✅ 未检测到侵权与跟卖违规行为")
         else:
             for i, v in enumerate(result.violations[:10], 1):
                 risk_icon = {"critical": "🚨", "high": "🔴", "medium": "⚠️", "low": "✅"}[v.risk_level.value]
                 lines.append(f"**{i}. [{v.violation_type.value.upper()}] {risk_icon}**")
                 lines.append(f"   {v.description_zh}")
                 if v.seller:
-                    lines.append(f"   Seller: {v.seller.seller_name} | Price: ${v.seller.price}")
-                lines.append(f"   Recommendation: {v.recommended_action_zh}")
+                    lines.append(f"   违规卖家: {v.seller.seller_name} | 售价: ${v.seller.price}")
+                lines.append(f"   处置建议: {v.recommended_action_zh}")
                 lines.append("")
         
         if result.action_plan:
             lines.extend([
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
                 "",
-                "## 📋 Rights action plan",
+                "## 📋 维权行动优先级计划",
                 "",
             ])
             for action in result.action_plan:
                 lines.append(f"**[P{action['priority']}] {action['action_zh']}**")
-                lines.append(f"   {action['detail_zh']}")
-                lines.append(f"   ExpectedTime: {action['timeline']}")
+                lines.append(f"   具体行动: {action['detail_zh']}")
+                lines.append(f"   建议时效: {action['timeline']}")
                 lines.append("")
     else:
         lines = [

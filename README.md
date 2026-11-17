@@ -1,334 +1,241 @@
-![eCommerce Skills Banner](./banner.png)
+# eCommerce-Skills Plus (电商技能工具箱增强版)
 
-<div align="center">
-
-# E-Commerce Skills by Nexscope
-
-**Free AI agent skills for Amazon, Shopify, eBay, Etsy, TikTok Shop & Walmart sellers.**
-
-[![Awesome](https://awesome.re/badge.svg)](https://awesome.re)
-[![GitHub stars](https://img.shields.io/github/stars/nexscope-ai/eCommerce-Skills?style=social)](https://github.com/nexscope-ai/eCommerce-Skills)
-![Downloads](https://img.shields.io/badge/downloads-16K+-orange?style=flat)
-[![Discord](https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white)](https://discord.com/invite/t7dfcMTmkH)
-
-Works with **OpenClaw** · **Claude Code** · **Cursor** · **Windsurf** · **Codex** · any agent that supports the Skills format
-
-[Explore Nexscope MCP tools →](https://www.nexscope.ai/mcp?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_readme_header_mcp) · [Explore Nexscope APIs →](https://www.nexscope.ai/api-docs?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_readme_header_api)
-
-</div>
+> **中英双语 / Bilingual README** (中文在前，English follows below)
 
 ---
 
-## Quick Start
+## 🇨🇳 中文说明
 
-Install the collection:
+### 项目介绍
+**eCommerce-Skills Plus** 是针对跨平台跨境电商（Amazon、Shopify、TikTok Shop、Walmart、Temu 等）卖家的 AI Agent 技能与量化分析工具箱增强版。提供开箱即用的利润测算、供应链瓶颈诊断、商品评价真实性排查、品牌舆情监控、跟卖侵权检测及出海拓展决策支持。
+
+---
+
+### 功能与实质改进点
+
+本项目针对原开源项目进行了 5 项实质性核心重构与功能扩充（逐条对应 [CHANGES.md](./CHANGES.md)）：
+
+1. **修复利润计算核心数学公式与 CLI 崩溃（Math & CLI Bug Fixes）**
+   - **保本价格公式修正**：原算法将平台佣金按原价当作固定支出计入保本价分子，导致保本价虚高；现已修正为随降价动态比例扣除佣金（`min_price = fixed_costs / (1 - referral_rate - ad_rate)`）。
+   - **目标定价模型修正**：补全退货货损折旧成本估算（`return_rate * product_cost * 0.5`），解决目标利润定价被低估的问题。
+   - **CLI 命令行健壮性**：全面消除原脚本传入 `--demo`、`--zh`、`--help` 触发 `JSONDecodeError` 崩溃的问题，支持标准参数解析与开箱演示。
+   - **排版修复**：修复状态行多重勾选图标（`✅ ✅ Healthy`）的排版异常。
+
+2. **消除跨平台代码纯复制粘贴，建立各平台专属财务与供应链模型（Multi-Platform Custom Models）**
+   - **Shopify DTC 模型**：剥离原搬抄 Amazon 的 FBA 逻辑，引入 3PL 仓配打包费、Stripe/Shopify Payments 网关手续费（2.9% + $0.30）、SaaS 订阅分摊与独立站 CAC 获客成本核算；供应链增加 3PL 周转与 DTC 现金流监控。
+   - **TikTok Shop 模型**：适配 TikTok Shop 佣金结构、达人分销带货佣金率（Affiliate Commission）、FBT（Fulfilled by TikTok）与短视频爆品冲量易断货快反供应链模型。
+   - **Walmart Marketplace 模型**：适配 Walmart 类目佣金梯度表、WFS 配送费用标准及 SQEP 入库合规处置策略。
+
+3. **补齐正统中文电商场景、重构机翻乱码词库与优化中文 NLP 分析（Chinese Localization & NLP Enhancement）**
+   - **机翻乱码修复**：彻底清理原代码中由自动化脚本造成的荒谬词汇（如把“好评返现”翻为 `"Positive ReviewCashback"`，把“时尚”翻为 `"Timeyet"`，输出 `"Total mention and"` 等），全面替换为正统地道的中文电商术语。
+   - **违规与舆情词库扩充**：为评价检测补齐“好评返现”、“刷单”、“加微信”、“返红包”等高频刷评特征词；为品牌舆情扩充常见客诉与侵权词。
+   - **中文字符级 N-gram 相似度切词**：针对中文无空格特性，为文本相似度检测新增 CJK 滑动切分，解决水军刷单模板识别失效的问题。
+
+4. **增强数据接口稳定性：超时控制、指数退避重试与限流保护（Network Stability & Rate Limiting）**
+   - **真实接口解析**：补齐 Google News RSS、DuckDuckGo API 及 Reddit 公开接口的解析逻辑。
+   - **高可用与风控防御**：内置网络超时控制（Connect 2.0s / Read 5.0s）、指数退避重试（带随机抖动 Jitter）、Token Bucket 请求频控限流与优雅降级回退，彻底告别上游网络假死与反爬封禁。
+
+5. **扩充平台覆盖：新增 Temu 全托管/半托管跨境核算技能（Temu Platform Expansion）**
+   - **新增 Temu 专属技能**：新增 `profit-margin-calculator-temu` 技能及 Python 计算内核。
+   - **核价模型构建**：全托管模式支持出厂采购价、国内集运头程、贴标包材、违规罚款预留及售后“仅退款”损耗率测算；半托管模式支持海外仓履约与尾程派送。
+   - **生态联动**：同步更新 `cross-border-ecommerce/SKILL.md`，将 Temu 全托管与半托管履约模型纳入跨境拓展战略全景。
+
+---
+
+### 快速开始
+
+#### 1. 环境依赖
+本项目仅依赖 Python 3.8+ 标准库（`urllib`、`json`、`re`、`math`、`datetime` 等），无需安装任何笨重的第三方包，开箱即用。
 
 ```bash
+# 验证 Python 版本
+python3 --version
+```
+
+#### 2. 核心模块运行与自测
+
+##### (1) 多平台利润核算（支持中英双语、开箱演示）
+```bash
+# Amazon 利润分析
+python3 profit-margin-calculator/profit-margin-calculator-amazon/scripts/calculator.py --demo
+python3 profit-margin-calculator/profit-margin-calculator-amazon/scripts/calculator.py --demo --zh
+
+# Shopify DTC 独立站利润分析
+python3 profit-margin-calculator/profit-margin-calculator-shopify/scripts/calculator.py --demo --zh
+
+# TikTok Shop 利润分析
+python3 profit-margin-calculator/profit-margin-calculator-tiktok/scripts/calculator.py --demo --zh
+
+# Walmart Marketplace 利润分析
+python3 profit-margin-calculator/profit-margin-calculator-walmart/scripts/calculator.py --demo --zh
+
+# 新增：Temu 全托管与半托管供货核算
+python3 profit-margin-calculator/profit-margin-calculator-temu/scripts/calculator.py --demo --zh
+```
+
+##### (2) 供应链瓶颈与营运资金诊断
+```bash
+# 诊断 Amazon 供应链（库存周转、Cash-to-Cash 周期）
+python3 supply-chain-optimization/supply-chain-optimization-amazon/scripts/calculator.py --demo --zh
+
+# 诊断 Shopify 供应链
+python3 supply-chain-optimization/supply-chain-optimization-shopify/scripts/calculator.py --demo --zh
+```
+
+##### (3) 品牌舆情监控与弹性网络采集
+```bash
+# 运行品牌舆情监控分析
+python3 brand-monitoring/scripts/monitor.py --demo --zh
+
+# 运行网络声量检索（支持超时重试与限流熔断）
+python3 brand-monitoring/scripts/scrapers.py "Anker" --zh
+```
+
+##### (4) 商品评价真实性排查（反刷单/防返现）
+```bash
+python3 review-checker/amazon-review-checker/scripts/analyzer.py --demo --zh
+```
+
+##### (5) 品牌保护与防跟卖维权
+```bash
+python3 brand-protection/brand-protection-amazon/scripts/detector.py --demo --zh
+```
+
+#### 3. 作为 AI Agent 技能安装
+支持 Claude Code、Cursor、Windsurf、OpenClaw 等符合 Skills 规范的 AI 助手：
+```bash
+# 安装整个技能工具箱
 npx skills add nexscope-ai/eCommerce-Skills -g
+
+# 安装单个平台技能（以 Temu 为例）
+npx skills add nexscope-ai/eCommerce-Skills --skill profit-margin-calculator-temu -g
 ```
 
-Or install a specific skill:
+---
+
+### 来源与致谢
+本项目基于 eCommerce-Skills（附原仓库链接 https://github.com/nexscope-ai/eCommerce-Skills）二次开发，原项目由 nexscope-ai 以 MIT 许可证开源。特别致谢原团队建立的基础框架与架构思路。
+
+---
+
+### 许可证
+本项目沿用 MIT 许可证，全文见根目录 [LICENSE](./LICENSE)。
+
+---
+---
+
+## 🇬🇧 English Description
+
+### Overview
+**eCommerce-Skills Plus** is an enhanced open-source collection of AI agent skills and quantitative decision tools designed for cross-border e-commerce sellers on Amazon, Shopify, TikTok Shop, Walmart, and Temu. It delivers ready-to-run profit margin calculators, supply chain bottleneck diagnosis, review authenticity analysis, brand sentiment monitoring, anti-hijacking protection, and international expansion guidance.
+
+---
+
+### Key Features & Substantive Improvements
+
+This repository implements 5 major substantive improvements over the original project (aligned with [CHANGES.md](./CHANGES.md)):
+
+1. **Core Math & CLI Bug Fixes in Profit & Supply Chain Calculators**
+   - **Break-Even Formula Correction**: Fixed the break-even pricing calculation by dynamically accounting for variable referral rates (`min_price = fixed_costs / (1 - referral_rate - ad_rate)`), avoiding artificial price inflation.
+   - **Target Pricing Accuracy**: Included product return damage loss (`return_rate * product_cost * 0.5`) in the target margin model.
+   - **Robust CLI Handling**: Fixed `JSONDecodeError` crashes triggered by arguments like `--demo`, `--zh`, and `--help`. Implemented clean argument parsing for out-of-the-box evaluation.
+   - **Layout Polish**: Removed redundant status badges (`✅ ✅ Healthy`).
+
+2. **Dedicated Multi-Platform Financial & Logistics Models**
+   - **Shopify DTC Model**: Replaced copy-pasted FBA logic with true DTC unit economics: 3PL fulfillment & storage, payment gateway transaction fees (2.9% + $0.30), SaaS plan amortizations, and CAC customer acquisition analytics.
+   - **TikTok Shop Model**: Modeled TikTok Shop category commissions (5-8%), creator affiliate commissions (10-15%), FBT fulfillment fees, and agile viral restock buffers.
+   - **Walmart Marketplace Model**: Adapted WFS tiered fulfillment fees, category commission schedules, and SQEP inbound compliance rules.
+
+3. **Authentic Chinese Localization, Terminology Cleaning & NLP Segmentation**
+   - **Clean Terminology**: Cleaned up mangled machine translations (e.g., replaced `"Positive ReviewCashback"` with authentic e-commerce terms, eliminated broken phrases like `"Total mention and"`).
+   - **Expanded Chinese Violation Dictionaries**: Added authentic keywords for incentivized reviews ("好评返现", "五星好评", "刷单", "返红包") and brand reputation monitoring.
+   - **CJK Bi-gram/Tri-gram Tokenization**: Added sliding n-gram segmentation for non-spaced Chinese text in review similarity detection, restoring accurate spam detection for Asian languages.
+
+4. **Network Interface Resilience: Timeout, Exponential Backoff, & Rate Limiting**
+   - **Functional Scrapers**: Implemented working parsers for Google News RSS, DuckDuckGo JSON, and Reddit public feeds.
+   - **High Availability**: Built-in network timeout controls (Connect 2.0s / Read 5.0s), exponential backoff retries with random jitter, rate limiting (Token Bucket), and graceful fallback to prevent process hangs or anti-scraping bans.
+
+5. **Platform Expansion: Added Temu Full-Managed & Semi-Managed Calculator**
+   - **New Temu Skill**: Introduced `profit-margin-calculator-temu` skill documentation and Python execution engine.
+   - **Temu Financial Modeling**: Modeled Full-Managed (procurement FOB, domestic consolidated shipping, packaging, compliance penalty reserves, and "refund-only" return loss) and Semi-Managed overseas fulfillment.
+   - **Ecosystem Integration**: Updated `cross-border-ecommerce/SKILL.md` to integrate Temu logistics comparisons into global cross-border strategy.
+
+---
+
+### Quick Start
+
+#### 1. Prerequisites
+Requires Python 3.8+. Standard library only—no external third-party dependencies required.
 
 ```bash
-npx skills add nexscope-ai/eCommerce-Skills --skill <skill-name> -g
+python3 --version
 ```
 
-Example — install the growth strategy skill:
+#### 2. Running Core Modules
 
+##### (1) Profit Margin Calculators
 ```bash
-npx skills add nexscope-ai/eCommerce-Skills --skill ecommerce-growth-strategy -g
+# Amazon Profit Analysis
+python3 profit-margin-calculator/profit-margin-calculator-amazon/scripts/calculator.py --demo
+
+# Shopify DTC Unit Economics
+python3 profit-margin-calculator/profit-margin-calculator-shopify/scripts/calculator.py --demo
+
+# TikTok Shop Economics
+python3 profit-margin-calculator/profit-margin-calculator-tiktok/scripts/calculator.py --demo
+
+# Walmart Marketplace Economics
+python3 profit-margin-calculator/profit-margin-calculator-walmart/scripts/calculator.py --demo
+
+# Temu Cross-Border Pricing (Full & Semi-Managed)
+python3 profit-margin-calculator/profit-margin-calculator-temu/scripts/calculator.py --demo --zh
 ```
 
-Then just ask your AI assistant naturally:
+##### (2) Supply Chain & Working Capital Optimization
+```bash
+# Amazon FBA & Cash-to-Cash Cycle
+python3 supply-chain-optimization/supply-chain-optimization-amazon/scripts/calculator.py --demo
 
-> *"I sell pet clothes on Shopify doing $8K/month. How do I get to $20K in 6 months?"*
+# Shopify 3PL & DTC Working Capital
+python3 supply-chain-optimization/supply-chain-optimization-shopify/scripts/calculator.py --demo
+```
 
----
+##### (3) Brand Monitoring & Resilient Scraping
+```bash
+# Brand Social Sentiment Monitoring
+python3 brand-monitoring/scripts/monitor.py --demo
 
-## What Are E-Commerce Skills?
+# Resilient Brand Scraper (with rate limiting & jitter retry)
+python3 brand-monitoring/scripts/scrapers.py "Anker"
+```
 
-E-commerce skills are plain-text instruction files that give AI agents specialized expertise in selling online. No binaries, no API keys, no setup friction — just markdown that any LLM can read.
+##### (4) Review Authenticity & Fraud Detection
+```bash
+python3 review-checker/amazon-review-checker/scripts/analyzer.py --demo
+```
 
-Install a skill, ask your AI assistant a question about your store, and get expert-level analysis — pricing strategy, listing optimization, market expansion, PPC campaigns — powered by proven e-commerce frameworks.
+##### (5) Brand Protection & Anti-Hijacking
+```bash
+python3 brand-protection/brand-protection-amazon/scripts/detector.py --demo
+```
 
+#### 3. Installing as AI Agent Skills
+Compatible with Claude Code, Cursor, Windsurf, OpenClaw, and any agent supporting the Skills standard:
+```bash
+# Install entire skill suite
+npx skills add nexscope-ai/eCommerce-Skills -g
 
-
----
-
-## ⭐ Most Popular
-
-🏆 **E-Commerce Growth Strategy**
-Diagnoses your business health using unit economics (CAC, LTV, AOV), identifies the #1 growth lever, and builds a 90-day roadmap.
-
-[Explore ecommerce MCP tools →](https://www.nexscope.ai/mcp?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_popular_ecommerce-growth-strategy_mcp) · [Explore ecommerce APIs →](https://www.nexscope.ai/api-docs?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_popular_ecommerce-growth-strategy_api)
-
-📦 **Cross-Border E-Commerce**
-Scores 15+ international markets, handles VAT/IOSS/GST compliance, plans logistics and localization strategy.
-
-[Explore cross-platform MCP tools →](https://www.nexscope.ai/mcp?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_popular_cross-border-ecommerce_mcp) · [Explore cross-platform data APIs →](https://www.nexscope.ai/api-docs?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_popular_cross-border-ecommerce_api)
-
-📣 **Marketing Strategy Builder**
-Full-stack omnichannel marketing — paid ads, SEO, email/SMS, content, social media, and influencer partnerships.
-
-[Explore marketing and SEO MCP tools →](https://www.nexscope.ai/mcp?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_popular_ecommerce-marketing-strategy-builder_mcp) · [Explore marketing and SEO APIs →](https://www.nexscope.ai/api-docs?tab=marketing&co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_popular_ecommerce-marketing-strategy-builder_api)
-
-💰 **Amazon Profit Calculator**
-Complete FBA fee breakdown — referral fees, fulfillment, storage costs, break-even analysis, pricing recommendations.
-
-[Explore ecommerce MCP data tools →](https://www.nexscope.ai/mcp?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_popular_profit-margin-calculator-amazon_mcp) · [Explore ecommerce data APIs →](https://www.nexscope.ai/api-docs?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_popular_profit-margin-calculator-amazon_api)
-
-📢 **PPC Strategy Planner**
-Cross-platform PPC strategy for Google, Meta & TikTok with ROAS targets and budget allocation.
-
-[Explore advertising MCP tools →](https://www.nexscope.ai/mcp?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_popular_ecommerce-ppc-strategy-planner_mcp) · [Explore marketing APIs →](https://www.nexscope.ai/api-docs?tab=marketing&co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_popular_ecommerce-ppc-strategy-planner_api)
-
-📝 **Product Description Generator**
-SEO-optimized product descriptions for any platform — Amazon, eBay, Walmart, Shopify, Etsy, TikTok Shop.
-
-[Generate product descriptions with MCP →](https://www.nexscope.ai/mcp-map/product-description-generator?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_popular_product-description-generator_mcp) · [View the Product Description Generator API →](https://www.nexscope.ai/api-docs/product-description-generator?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_popular_product-description-generator_api)
-
-> **🔍 Need Amazon-specific tools?** See [Amazon Skills](https://github.com/nexscope-ai/Amazon-Skills) — 52 skills for FBA, PPC, listing optimization, keyword research & more.
+# Install specific skill (e.g. Temu calculator)
+npx skills add nexscope-ai/eCommerce-Skills --skill profit-margin-calculator-temu -g
+```
 
 ---
 
-## Collection
-
-**Status key:** ✅ Available (production-ready) · 🔶 Beta (functional, being improved)
-
-### 🕵️ Competitor Analysis (6 skills)
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [amazon-review-checker](./review-checker/amazon-review-checker) | Amazon review authenticity — fake reviews, time clustering, verified purchase validation. | ✅ Available |
-| [ebay-review-checker](./review-checker/ebay-review-checker) | eBay review authenticity — fake feedback, suspicious patterns, buyer manipulation. | ✅ Available |
-| [walmart-review-checker](./review-checker/walmart-review-checker) | Walmart review authenticity — fake reviews, WFS verified badge analysis, red flags. | ✅ Available |
-| [competitor-price-analysis](./competitor-price-analysis) | Competitor pricing strategy analysis — price mapping, gaps, elasticity signals. | ✅ Available |
-| [ecommerce-competitor-analysis](./ecommerce-competitor-analysis) | Cross-platform competitor analysis — multi-channel presence, strategy, positioning. | ✅ Available |
-| [product-review-analysis](./product-review-analysis) | Product review analysis — pain points, praise patterns, feature requests, sentiment. | ✅ Available |
-
-
-
-### 💰 Pricing & Profitability (7 skills)
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [profit-margin-calculator-amazon](./profit-margin-calculator/profit-margin-calculator-amazon) | Amazon profit calculator — FBA fees, referral fees, break-even, pricing recommendations. | ✅ Available |
-| [profit-margin-calculator-shopify](./profit-margin-calculator/profit-margin-calculator-shopify) | Shopify/DTC profit calculator — ad spend, CAC, payment processing, 3PL, LTV/CAC analysis. | ✅ Available |
-| [profit-margin-calculator-tiktok](./profit-margin-calculator/profit-margin-calculator-tiktok) | TikTok Shop profit calculator — affiliate commissions, platform fees, FBT, return rates. | ✅ Available |
-| [profit-margin-calculator-walmart](./profit-margin-calculator/profit-margin-calculator-walmart) | Walmart profit calculator — WFS fulfillment, storage fees, referral fees, comparison. | ✅ Available |
-| [competitive-pricing-strategy](./competitive-pricing-strategy) | Price architecture and competitor positioning — normalized offer maps, contribution floors, response rules, and channel rollout. | ✅ Available |
-| [dynamic-pricing-ecommerce](./dynamic-pricing-ecommerce) | Guardrailed repricing systems — signals, floors and ceilings, rule matrices, simulations, approvals, and rollback. | ✅ Available |
-| [price-optimization-tool](./price-optimization-tool) | Evidence-bounded price decisions — unit economics, elasticity, candidate scenarios, experiment design, and rollout gates. | ✅ Available |
-
-
-
-### 🚀 Growth & Expansion (16 skills)
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [ecommerce-growth-strategy](./ecommerce-growth-strategy) | Strategic growth advisor — unit economics, Ansoff Matrix, 5 growth levers, 90-day roadmap. | ✅ Available |
-| [cross-border-ecommerce](./cross-border-ecommerce) | Cross-border expansion — market scoring, logistics comparison, VAT/IOSS/GST compliance, payment localization, cultural adaptation. | ✅ Available |
-| [brand-protection-amazon](./brand-protection/brand-protection-amazon) | Amazon brand protection — hijackers, counterfeits, MAP violations, Brand Registry. | ✅ Available |
-| [brand-protection-ebay](./brand-protection/brand-protection-ebay) | eBay brand protection — unauthorized sellers, counterfeits, VeRO complaints. | ✅ Available |
-| [brand-protection-shopify](./brand-protection/brand-protection-shopify) | Shopify/DTC brand protection — counterfeit stores, DMCA takedowns, domain monitoring. | ✅ Available |
-| [brand-protection-tiktok](./brand-protection/brand-protection-tiktok) | TikTok Shop brand protection — counterfeit detection, IP reporting, seller violations. | ✅ Available |
-| [brand-protection-walmart](./brand-protection/brand-protection-walmart) | Walmart brand protection — unauthorized sellers, MAP violations, IP infringement. | ✅ Available |
-| [product-differentiation-amazon](./product-differentiation/product-differentiation-amazon) | Amazon differentiation — competitor weaknesses, negative review pain points, USP generation. | ✅ Available |
-| [product-differentiation-ebay](./product-differentiation/product-differentiation-ebay) | eBay differentiation — competitor analysis, listing gaps, unique selling points. | ✅ Available |
-| [product-differentiation-shopify](./product-differentiation/product-differentiation-shopify) | Shopify/DTC differentiation — competitor weaknesses, market positioning, brand strategy. | ✅ Available |
-| [product-differentiation-tiktok](./product-differentiation/product-differentiation-tiktok) | TikTok Shop differentiation — viral product analysis, trend gaps, content angles. | ✅ Available |
-| [tiktok-shop-cross-border](./tiktok-shop-cross-border) | Cross-border selling on TikTok Shop — market selection, logistics, localization, compliance. | ✅ Available |
-| [ecommerce-personalization](./ecommerce-personalization) | Personalization — recommendations, dynamic content, customer segmentation. | 🔶 Beta |
-| [ecommerce-business-plan](./ecommerce-business-plan) | E-commerce business plan — market analysis, financial projections, milestone roadmap. | 🔶 Beta |
-| [omnichannel-ecommerce](./omnichannel-ecommerce) | Omnichannel strategy — channel selection, inventory sync, unified branding. | 🔶 Beta |
-| [multichannel-ecommerce](./multichannel-ecommerce) | Multichannel management — inventory sync, order routing, listing syndication. | 🔶 Beta |
-
-
-
-### 📣 E-Commerce Marketing (16 skills)
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [ecommerce-marketing-strategy-builder](./ecommerce-marketing-strategy-builder) | Full-stack omnichannel marketing — paid ads, SEO, email/SMS, content, social, influencers. | ✅ Available |
-| [ecommerce-email-marketing-builder](./ecommerce-email-marketing-builder) | Email marketing campaign builder — flows, sequences, templates, automation strategies. | ✅ Available |
-| [ecommerce-content-marketing](./ecommerce-content-marketing) | Content marketing strategy — customer reviews, trends, competitor analysis, content calendars. | ✅ Available |
-| [tiktok-influencer-marketing](./tiktok-influencer-marketing) | TikTok creator campaigns — discovery, outreach, ROI tracking, UGC strategy. | ✅ Available |
-| [tiktok-creator-marketplace](./tiktok-creator-marketplace) | Creator Marketplace strategy — finding creators, negotiation, campaign management, performance metrics. | ✅ Available |
-| [tiktok-shop-content-strategy](./tiktok-shop-content-strategy) | Content creation for TikTok Shop — trending formats, hooks, product showcasing, hashtag strategy. | ✅ Available |
-| [tiktok-shop-branding](./tiktok-shop-branding) | Brand building on TikTok — brand identity, content pillars, community engagement, brand storytelling. | ✅ Available |
-| [ecommerce-social-media-marketing](./ecommerce-social-media-marketing) | Social media marketing — content calendars, platform strategy, social commerce. | ✅ Available |
-| [shopify-marketing](./shopify-marketing) | Shopify marketing — SEO, email, paid ads, CRO, retention for DTC brands. | ✅ Available |
-| [product-launch-strategy](./product-launch-strategy) | Product launch playbook — pre-launch, launch day, post-launch for Amazon and Shopify. | 🔶 Beta |
-| [ecommerce-branding](./ecommerce-branding) | E-commerce branding — positioning, messaging, visual identity, brand consistency. | 🔶 Beta |
-| [tiktok-live-selling](./tiktok-live-selling) | TikTok Live selling strategy — show planning, engagement tactics, conversion optimization, audience building. | 🔶 Beta |
-| [influencer-outreach](./influencer-outreach) | Influencer outreach — discovery, templates, negotiation, contracts, relationship management. | 🔶 Beta |
-| [affiliate-marketing-strategy](./affiliate-marketing-strategy) | Affiliate program — setup, commission design, recruitment, tracking, scaling. | 🔶 Beta |
-| [ecommerce-video-marketing](./ecommerce-video-marketing) | Video marketing — product demos, UGC, short-form, Amazon video, video SEO. | 🔶 Beta |
-| [shoppable-video](./shoppable-video) | Shoppable video — TikTok, Reels, Shorts, product tagging, live shopping. | 🔶 Beta |
-
-
-
-### 📝 Listing Optimization (8 skills)
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [product-description-generator](./product-description-generator) | Product descriptions for any platform — Amazon, eBay, Walmart, Shopify, Etsy, TikTok Shop. | ✅ Available |
-| [etsy-seo](./etsy-seo) | Etsy SEO analyzer — title optimization, tag analysis, description scoring, SEO scoring. | ✅ Available |
-| [product-title-optimization](./product-title-optimization) | Product title optimization — platform-specific rules, keyword placement, CTR improvement. | 🔶 Beta |
-| [walmart-listing-optimization](./walmart-listing-optimization) | Walmart listing optimization — Content Quality Score, search, rich media, attributes. | 🔶 Beta |
-| [product-page-seo](./product-page-seo) | Product page SEO — structured data, page speed, mobile optimization, content enrichment. | 🔶 Beta |
-| [ebay-seo](./ebay-seo) | eBay Cassini SEO — titles, item specifics, category selection, seller performance. | 🔶 Beta |
-| [shopify-seo](./shopify-seo) | Shopify SEO — technical audit, product/collection pages, blog, schema, internal linking. | 🔶 Beta |
-| [woocommerce-seo](./woocommerce-seo) | WooCommerce SEO — technical audit, product pages, schema markup, site speed, content. | 🔶 Beta |
-
-
-
-### 📢 Advertising (4 skills)
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [ecommerce-ppc-strategy-planner](./ecommerce-ppc-strategy-planner) | Cross-platform PPC strategy — Google, Meta, TikTok ads. ROAS targets, budget allocation. | ✅ Available |
-| [google-shopping-optimization](./google-shopping-optimization) | Google Shopping — feed optimization, bidding, Performance Max, ROAS optimization. | 🔶 Beta |
-| [ebay-advertising](./ebay-advertising) | eBay Promoted Listings — Standard, Advanced, Offsite Ads, bidding, ROAS optimization. | 🔶 Beta |
-| [walmart-advertising-strategy](./walmart-advertising-strategy) | Walmart Connect — Sponsored Products/Brands, bidding, budget allocation, ROAS. | 🔶 Beta |
-
-
-
-### 📡 Monitoring & Alerts (5 skills)
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [brand-monitoring](./brand-monitoring) | Brand mention tracking across Reddit, Google News, YouTube, DuckDuckGo. Sentiment analysis, crisis detection. | ✅ Available |
-| [review-monitoring](./review-monitoring) | Review monitoring — negative review alerts, competitor tracking, response workflows. | 🔶 Beta |
-| [sales-tracking-tool](./sales-tracking-tool) | Sales performance tracking — KPI dashboards, trend analysis, anomaly detection. | 🔶 Beta |
-| [competitor-price-tracker](./competitor-price-tracker) | Competitor price monitoring — change alerts, promotion detection, price war response. | 🔶 Beta |
-| [social-media-monitor](./social-media-monitor) | Social media monitoring — mentions, sentiment, competitor activity across platforms. | 🔶 Beta |
-
-
-
-### 📦 Supply Chain & Logistics (6 skills)
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [supply-chain-optimization-amazon](./supply-chain-optimization/supply-chain-optimization-amazon) | Amazon supply chain — FBA inventory, IPI score, storage fees, restock optimization. | ✅ Available |
-| [supply-chain-optimization-shopify](./supply-chain-optimization/supply-chain-optimization-shopify) | Shopify/DTC supply chain — cash flow, inventory, shipping costs, 3PL optimization. | ✅ Available |
-| [supply-chain-optimization-tiktok](./supply-chain-optimization/supply-chain-optimization-tiktok) | TikTok Shop supply chain — affiliate payouts, return rates, viral product lifecycle. | ✅ Available |
-| [supply-chain-optimization-walmart](./supply-chain-optimization/supply-chain-optimization-walmart) | Walmart supply chain — WFS costs, referral fees, Walmart Connect ads, comparison. | ✅ Available |
-| [ecommerce-returns-management](./ecommerce-returns-management) | Returns management — rate reduction, reverse logistics, root cause analysis. | 🔶 Beta |
-| [ecommerce-shipping-rates](./ecommerce-shipping-rates) | Shipping rate comparison — UPS, FedEx, USPS, DHL, zone optimization. | 🔶 Beta |
-
-
-
-### ⚙️ Operations & Analytics (15 skills)
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [warehouse-optimization](./warehouse-optimization) | Warehouse & inventory optimization — safety stock, reorder points, ABC analysis, IPI score. | ✅ Available |
-| [tiktok-shop-analytics](./tiktok-shop-analytics) | TikTok Shop analytics — video, live, affiliate, ads performance, benchmarks. | ✅ Available |
-| [ecommerce-landing-page](./ecommerce-landing-page) | Landing page audit — CTA, trust signals, copy optimization, A/B testing. | 🔶 Beta |
-| [ecommerce-checkout-optimization](./ecommerce-checkout-optimization) | Checkout optimization — cart abandonment reduction, payment methods, friction analysis. | 🔶 Beta |
-| [shopify-analytics-guide](./shopify-analytics-guide) | Shopify analytics — dashboard metrics, cohort analysis, LTV, custom reports. | 🔶 Beta |
-| [tiktok-shop-conversion](./tiktok-shop-conversion) | Conversion optimization — product detail pages, video hooks, urgency tactics, checkout flow. | 🔶 Beta |
-| [tiktok-shop-creator-management](./tiktok-shop-creator-management) | Creator relationship management — recruitment, briefing, content approval, commission optimization. | 🔶 Beta |
-| [tiktok-shop-customer-service](./tiktok-shop-customer-service) | Customer service on TikTok Shop — response time, dispute resolution, auto-replies, buyer satisfaction. | 🔶 Beta |
-| [tiktok-shop-inventory](./tiktok-shop-inventory) | Inventory management for TikTok Shop — demand forecasting, viral stock planning, FBT optimization. | 🔶 Beta |
-| [conversion-rate-optimization](./conversion-rate-optimization) | CRO — funnel analysis, heuristic evaluation, user behavior, testing roadmap. | 🔶 Beta |
-| [shopify-conversion-optimization](./shopify-conversion-optimization) | Shopify CRO — product pages, checkout, trust signals, mobile UX, page speed. | 🔶 Beta |
-| [ecommerce-ab-testing](./ecommerce-ab-testing) | E-commerce A/B testing — Amazon Experiments, Shopify, ads, email, methodology. | 🔶 Beta |
-| [shopify-ab-testing](./shopify-ab-testing) | Shopify A/B testing — hypothesis, product page tests, statistical significance. | 🔶 Beta |
-| [ecommerce-customer-retention](./ecommerce-customer-retention) | Customer retention — email flows, loyalty, RFM segmentation, win-back, LTV. | 🔶 Beta |
-| [ecommerce-subscription-model](./ecommerce-subscription-model) | Subscription models — replenishment, curation, pricing tiers, churn reduction. | 🔶 Beta |
-
-
-
-### 🔍 Product Research (6 skills)
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [ecommerce-keyword-research](./ecommerce-keyword-research) | Cross-platform keyword research — Amazon, Shopify, Etsy, Google Shopping, TikTok Shop, Walmart. | 🔶 Beta |
-| [dropshipping-product-research](./dropshipping-product-research) | Dropshipping product research — supplier reliability, margin analysis, marketing viability. | 🔶 Beta |
-| [market-gap-analysis](./market-gap-analysis) | Identify underserved market gaps — competitor blind spots, review pain points, search demand gaps. | 🔶 Beta |
-| [ebay-product-research](./ebay-product-research) | eBay product research — sell-through rates, ASP, competition, seasonal demand. | 🔶 Beta |
-| [tiktok-shop-product-research](./tiktok-shop-product-research) | Product research for TikTok Shop — viral potential scoring, creator demand, category analysis. | 🔶 Beta |
-| [tiktok-shop-trending-products](./tiktok-shop-trending-products) | Trending product discovery — viral product analysis, category trends, seasonal opportunities on TikTok. | 🔶 Beta |
-
-
-
-### 🏪 Platform Guides & Tools (36 skills)
-
-| Skill | Description | Status |
-|-------|-------------|--------|
-| [tiktok-shop-seller-guide](./tiktok-shop-seller-guide) | TikTok Shop guide — listing, content strategy, live selling, creator affiliates. | ✅ Available |
-| [tiktok-shop-listing-optimization](./tiktok-shop-listing-optimization) | Product listing optimization — titles, descriptions, images, video, attributes for TikTok search. | ✅ Available |
-| [tiktok-shop-affiliate-program](./tiktok-shop-affiliate-program) | Affiliate collaboration — commission structure, creator selection, sample management, performance tracking. | ✅ Available |
-| [tiktok-shop-ads](./tiktok-shop-ads) | TikTok Shop advertising — Product Shopping Ads, Video Shopping Ads, Live Shopping Ads, bidding strategy. | ✅ Available |
-| [etsy-seller-guide](./etsy-seller-guide) | Complete Etsy selling guide — shop setup, SEO, pricing, Star Seller, advertising. | 🔶 Beta |
-| [ebay-seller-guide](./ebay-seller-guide) | Complete eBay guide — auction/BIN, Cassini SEO, Top Rated Seller, shipping. | 🔶 Beta |
-| [walmart-seller-guide](./walmart-seller-guide) | Walmart Marketplace guide — application, listing, WFS, Connect ads, Pro Seller. | 🔶 Beta |
-| [shopify-store-setup](./shopify-store-setup) | Shopify setup — plan selection, theme, products, payments, shipping, launch. | 🔶 Beta |
-| [shopify-theme-optimization](./shopify-theme-optimization) | Theme speed and UX optimization — Core Web Vitals, Liquid code, image loading, mobile responsiveness. | 🔶 Beta |
-| [shopify-app-recommendations](./shopify-app-recommendations) | App stack advisor — essential apps by business stage, cost optimization, performance impact analysis. | 🔶 Beta |
-| [shopify-dropshipping](./shopify-dropshipping) | Dropshipping setup and scaling — supplier integration, automation, pricing strategy, customer experience. | 🔶 Beta |
-| [shopify-email-flows](./shopify-email-flows) | Email automation flows — welcome series, abandoned cart, post-purchase, win-back, browse abandonment. | 🔶 Beta |
-| [shopify-upsell-cross-sell](./shopify-upsell-cross-sell) | Upsell and cross-sell strategy — product recommendations, cart upsells, post-purchase offers, bundles. | 🔶 Beta |
-| [shopify-checkout-customization](./shopify-checkout-customization) | Checkout optimization — Checkout Extensibility, custom fields, express payments, trust elements. | 🔶 Beta |
-| [shopify-inventory-management](./shopify-inventory-management) | Multi-location inventory — transfers, low stock alerts, demand forecasting, safety stock, ABC analysis. | 🔶 Beta |
-| [shopify-subscription-setup](./shopify-subscription-setup) | Subscription program setup — recurring billing, frequency options, churn reduction, lifetime value. | 🔶 Beta |
-| [shopify-wholesale-channel](./shopify-wholesale-channel) | B2B/wholesale setup — wholesale pricing, minimum orders, custom catalogs, net payment terms. | 🔶 Beta |
-| [shopify-international](./shopify-international) | Shopify Markets — multi-currency, translation, duties/taxes, localized pricing, market-specific content. | 🔶 Beta |
-| [shopify-migration](./shopify-migration) | Platform migration to Shopify — from WooCommerce, Magento, BigCommerce, data transfer, URL redirects. | 🔶 Beta |
-| [shopify-blog-strategy](./shopify-blog-strategy) | Content marketing via Shopify blog — SEO content, product education, buying guides, internal linking. | 🔶 Beta |
-| [shopify-loyalty-program](./shopify-loyalty-program) | Customer loyalty and rewards — points systems, VIP tiers, referral programs, app selection. | 🔶 Beta |
-| [shopify-product-photography-guide](./shopify-product-photography-guide) | DIY product photography — setup, lighting, backgrounds, editing, lifestyle shots, 360 views. | 🔶 Beta |
-| [shopify-cart-abandonment](./shopify-cart-abandonment) | Cart abandonment recovery — email sequences, SMS, retargeting, exit intent, checkout friction audit. | 🔶 Beta |
-| [shopify-facebook-instagram-shop](./shopify-facebook-instagram-shop) | Social selling setup — Facebook Shop, Instagram Shopping, product tagging, social checkout. | 🔶 Beta |
-| [shopify-google-channel](./shopify-google-channel) | Google integration — Shopping feed, Performance Max, free listings, Merchant Center optimization. | 🔶 Beta |
-| [shopify-landing-page-builder](./shopify-landing-page-builder) | High-converting landing pages — campaign pages, collection pages, seasonal promos, A/B testing. | 🔶 Beta |
-| [shopify-tax-compliance](./shopify-tax-compliance) | Tax setup and compliance — sales tax, VAT, duty collection, tax-exempt customers, reporting. | 🔶 Beta |
-| [shopify-speed-optimization](./shopify-speed-optimization) | Store speed audit — lazy loading, image compression, app bloat removal, theme code optimization. | 🔶 Beta |
-| [tiktok-shop-pricing](./tiktok-shop-pricing) | Pricing strategy for TikTok — competitive pricing, commission impact, bundling, discount psychology. | 🔶 Beta |
-| [tiktok-shop-promotions](./tiktok-shop-promotions) | TikTok Shop deals — Flash Deals, vouchers, free shipping, bundle deals, promotion planning. | 🔶 Beta |
-| [tiktok-shop-fulfillment](./tiktok-shop-fulfillment) | Fulfillment setup — Fulfilled by TikTok, self-fulfillment, shipping templates, return policies. | 🔶 Beta |
-| [tiktok-shop-shipping](./tiktok-shop-shipping) | TikTok Shop shipping setup — carrier selection, shipping templates, delivery expectations. | 🔶 Beta |
-| [tiktok-shop-returns](./tiktok-shop-returns) | Return policy and process — TikTok Shop policies, return rate reduction, customer communication. | 🔶 Beta |
-| [tiktok-shop-reviews](./tiktok-shop-reviews) | Review strategy for TikTok Shop — encouraging reviews, responding, leveraging UGC, social proof. | 🔶 Beta |
-| [tiktok-shop-compliance](./tiktok-shop-compliance) | TikTok Shop policies and compliance — restricted products, intellectual property, content guidelines. | 🔶 Beta |
-
-
+### Source & Acknowledgments
+本项目基于 eCommerce-Skills（附原仓库链接 https://github.com/nexscope-ai/eCommerce-Skills）二次开发，原项目由 nexscope-ai 以 MIT 许可证开源。  
+*This project is a secondary development based on eCommerce-Skills (original repository: https://github.com/nexscope-ai/eCommerce-Skills), originally open-sourced under the MIT License by nexscope-ai.*
 
 ---
 
-## Why Free?
-
-These skills use publicly available data and proven frameworks — no API key, no paid subscription, no setup friction. Install and go.
-
-These skills give your AI agent e-commerce expertise — but skills alone can't access live marketplace data.
-
-**Need live marketplace data?** Browse Nexscope MCP tools for product, keyword, competitor, and review research. Connect a compatible AI assistant and check each tool’s access requirements and credit cost before running it.
-
-[Browse MCP tools](https://www.nexscope.ai/mcp?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_readme_tools) · [Connection guide](https://www.nexscope.ai/mcp-map?co-from=github&utm_source=github&utm_medium=referral&utm_campaign=github_mcp_launch&utm_content=ecommerce-skills_readme_setup)
-
-**[Nexscope](https://www.nexscope.ai/?co-from=github)** is an ecommerce data and creative platform. Its marketplace intelligence tools and Data APIs support product, keyword, competitor, pricing, review, seller, sourcing, and store research, while its online image and video generators and Creative APIs support ecommerce content production.
-
----
-
-## Related
-
-- **[Amazon Skills](https://github.com/nexscope-ai/Amazon-Skills)** — 51 Amazon-specific tools: FBA calculator, keyword research, listing optimization, PPC campaigns & more
-- **[Nexscope](https://www.nexscope.ai/?co-from=github)** — ecommerce marketplace intelligence, online image and video generators, and developer APIs
-
----
-
-## License
-
-MIT
-
----
-
-<div align="center">
-
-Built by **[Nexscope](https://www.nexscope.ai/?co-from=github)** — AI-powered e-commerce tools for sellers worldwide.
-
-⭐ Star this repo to help other sellers discover these tools.
-
-</div>
+### License
+This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for the full license text.

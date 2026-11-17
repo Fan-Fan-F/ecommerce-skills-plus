@@ -230,83 +230,79 @@ def evaluate_status(value: float, thresholds: dict, higher_is_better: bool = Tru
 
 
 def calculate_metrics(data: SupplyChainInput) -> List[MetricResult]:
-    """
-    Calculateplace has Key Metrics
-    """
+    """Calculate all key metrics"""
     benchmarks = BENCHMARKS.get(data.platform, BENCHMARKS["amazon"])
     metrics = []
     
     # 1. Gross Margin
     gross_profit = data.selling_price - data.product_cost - data.shipping_cost_per_unit - data.fba_fee
-    gross_margin = gross_profit / data.selling_price
+    gross_margin = gross_profit / data.selling_price if data.selling_price > 0 else 0
     metrics.append(MetricResult(
         name="Gross Margin",
         value=round(gross_margin * 100, 1),
         unit="%",
         status=evaluate_status(gross_margin, benchmarks["gross_margin"], higher_is_better=True),
         benchmark=benchmarks["gross_margin"]["healthy"] * 100,
-        description=f"(Selling Price - ProductCost - Inbound - FBAfee) / Selling Price"
+        description="(Selling Price - Product Cost - Inbound Freight - Fulfillment Fee) / Selling Price"
     ))
     
-    # 2. InboundProportion
-    shipping_ratio = data.shipping_cost_per_unit / data.selling_price
+    # 2. Inbound Shipping Ratio
+    shipping_ratio = data.shipping_cost_per_unit / data.selling_price if data.selling_price > 0 else 0
     metrics.append(MetricResult(
-        name="InboundProportion",
+        name="Inbound Freight Ratio",
         value=round(shipping_ratio * 100, 1),
         unit="%",
         status=evaluate_status(shipping_ratio, benchmarks["shipping_ratio"], higher_is_better=False),
         benchmark=benchmarks["shipping_ratio"]["healthy"] * 100,
-        description="InboundCost / Selling Price"
+        description="Inbound Freight Cost / Selling Price"
     ))
     
     # 3. Net Margin
     ad_cost = data.selling_price * data.ad_spend_ratio
-    other_cost = data.selling_price * 0.05  # Other FeesEstimate 5%
+    other_cost = data.selling_price * 0.05  # Other fees estimate ~5%
     net_profit = gross_profit - data.storage_fee - ad_cost - other_cost
-    net_margin = net_profit / data.selling_price
+    net_margin = net_profit / data.selling_price if data.selling_price > 0 else 0
     metrics.append(MetricResult(
         name="Net Margin",
         value=round(net_margin * 100, 1),
         unit="%",
         status=evaluate_status(net_margin, benchmarks["net_margin"], higher_is_better=True),
         benchmark=benchmarks["net_margin"]["healthy"] * 100,
-        description="Deduct allCost after Profit Margin"
+        description="Net Profit Margin after all costs and fees"
     ))
     
     # 4. Inventory Days
     metrics.append(MetricResult(
-        name="Inventoryweeksconvert",
+        name="Inventory Turnover Days",
         value=data.inventory_days,
         unit="days",
         status=evaluate_status(data.inventory_days, benchmarks["inventory_days"], higher_is_better=False),
         benchmark=benchmarks["inventory_days"]["healthy"],
-        description="CurrentInventoryCanselldays"
+        description="Days of inventory currently on hand"
     ))
     
-    # 5. CashweeksconvertweeksPeriod
+    # 5. Cash Cycle
     cash_cycle = (
         data.production_days + 
         data.shipping_days + 
         data.inventory_days + 
-        14  # AmazonPayment Cycle
+        14  # Amazon payout cycle (~14 days)
         - data.supplier_payment_days
     )
     metrics.append(MetricResult(
-        name="Cash Cycle",
+        name="Cash-to-Cash Cycle",
         value=cash_cycle,
         unit="days",
         status=evaluate_status(cash_cycle, benchmarks["cash_cycle"], higher_is_better=False),
         benchmark=benchmarks["cash_cycle"]["healthy"],
-        description=" from PaymentComplete payment cycleweeksPeriod"
+        description="Days between paying suppliers and receiving customer payout"
     ))
     
     return metrics
 
 
 def calculate_cost_breakdown(data: SupplyChainInput) -> Dict[str, float]:
-    """
-    CalculateCostStructure breakdown
-    """
+    """Calculate cost structure breakdown"""
     ad_cost = data.selling_price * data.ad_spend_ratio
     other_cost = data.selling_price * 0.05
     
@@ -320,6 +316,7 @@ def calculate_cost_breakdown(data: SupplyChainInput) -> Dict[str, float]:
         - other_cost
     )
     
+    sp = data.selling_price if data.selling_price > 0 else 1.0
     return {
         "selling_price": data.selling_price,
         "product_cost": data.product_cost,
@@ -329,116 +326,105 @@ def calculate_cost_breakdown(data: SupplyChainInput) -> Dict[str, float]:
         "ad_cost": round(ad_cost, 2),
         "other_cost": round(other_cost, 2),
         "net_profit": round(net_profit, 2),
-        # Proportion
-        "product_cost_ratio": round(data.product_cost / data.selling_price * 100, 1),
-        "shipping_ratio": round(data.shipping_cost_per_unit / data.selling_price * 100, 1),
-        "fba_ratio": round(data.fba_fee / data.selling_price * 100, 1),
-        "storage_ratio": round(data.storage_fee / data.selling_price * 100, 1),
-        "ad_ratio": round(ad_cost / data.selling_price * 100, 1),
-        "net_margin": round(net_profit / data.selling_price * 100, 1)
+        "product_cost_ratio": round(data.product_cost / sp * 100, 1),
+        "shipping_ratio": round(data.shipping_cost_per_unit / sp * 100, 1),
+        "fba_ratio": round(data.fba_fee / sp * 100, 1),
+        "storage_ratio": round(data.storage_fee / sp * 100, 1),
+        "ad_ratio": round(ad_cost / sp * 100, 1),
+        "net_margin": round(net_profit / sp * 100, 1)
     }
 
 
 def diagnose_bottlenecks(data: SupplyChainInput, metrics: List[MetricResult]) -> List[BottleneckItem]:
-    """
-    DiagnoseBottleneckandSort
-    """
+    """Diagnose bottlenecks and prioritize top issues"""
     bottlenecks = []
     benchmarks = BENCHMARKS.get(data.platform, BENCHMARKS["amazon"])
     
-    # Check each Metrics
     for metric in metrics:
         if metric.status == HealthStatus.DANGER:
             severity = "High"
             priority = 1
         elif metric.status == HealthStatus.WARNING:
-            severity = " in "
+            severity = "Medium"
             priority = 2
         else:
-            continue  # HealthyNot addBottleneck
+            continue
             
-        # Based onMetricsCategoryTypeGenerateRecommendation
-        if metric.name == "Inventoryweeksconvert":
+        if metric.name == "Inventory Turnover Days":
             bottlenecks.append(BottleneckItem(
                 priority=priority,
                 severity=severity,
-                title="Inventoryweeksconvert slow ",
-                problem=f"Current {metric.value} days vs Recommendation <{benchmarks['inventory_days']['healthy']} days",
-                impact="CapitalOccupyIncrease，MayGeneratePeriodStoragefee",
-                suggestion="1. Clear slow-movingSKU 2. Set safetyInventoryFormula 3.  small BatchHigh frequencyRestock"
+                title="Slow Inventory Turnover",
+                problem=f"Current {metric.value} days vs benchmark <{benchmarks['inventory_days']['healthy']} days",
+                impact="Ties up working capital and risks aging / long-term storage fees",
+                suggestion="1. Clear slow-moving SKUs  2. Optimize safety stock formula  3. Smaller batch, higher frequency restock"
             ))
-        elif metric.name == "Cash Cycle":
+        elif metric.name == "Cash-to-Cash Cycle":
             bottlenecks.append(BottleneckItem(
                 priority=priority,
                 severity=severity,
-                title="Cash Cycle ",
-                problem=f"Current {metric.value} days vs Recommendation <{benchmarks['cash_cycle']['healthy']} days",
-                impact="CapitalUtilizeeffectRate low ，ImpactExpansionCapability",
-                suggestion="1. StriveSupplierPayment terms 2. shrink short Inventorydays 3. ConsiderSupply ChainFinance"
+                title="Extended Cash Conversion Cycle",
+                problem=f"Current {metric.value} days vs benchmark <{benchmarks['cash_cycle']['healthy']} days",
+                impact="Inefficient capital utilization and higher financing risk",
+                suggestion="1. Negotiate supplier credit terms  2. Shorten lead times  3. Utilize supply chain trade finance"
             ))
-        elif metric.name == "InboundProportion":
+        elif metric.name == "Inbound Freight Ratio":
             bottlenecks.append(BottleneckItem(
                 priority=priority,
                 severity=severity,
-                title="LogisticsCost High",
-                problem=f"Current {metric.value}% vs Recommendation <{benchmarks['shipping_ratio']['healthy']*100}%",
-                impact="ErodeProfitempty",
-                suggestion="1. Sea freightReplaceAir freight 2. LCL/Full containerOptimization 3. Compare multiple freight forwarders"
+                title="High Inbound Logistics Cost",
+                problem=f"Current {metric.value}% vs benchmark <{benchmarks['shipping_ratio']['healthy']*100}%",
+                impact="Directly erodes gross profit margin",
+                suggestion="1. Switch air freight to ocean shipping  2. Consolidate LCL into FCL  3. Bid across multiple freight forwarders"
             ))
         elif metric.name == "Gross Margin":
             bottlenecks.append(BottleneckItem(
                 priority=priority,
                 severity=severity,
-                title="Gross Marginbias low ",
-                problem=f"Current {metric.value}% vs Recommendation >{benchmarks['gross_margin']['healthy']*100}%",
-                impact="Risk resistanceCapabilityWeak，difficult to SupportAdvertisingInput",
-                suggestion="1. Raise price or Optimizationlistingconvert 2. reduce low ProcurementCost 3. OptimizationProductCombo"
+                title="Low Gross Margin",
+                problem=f"Current {metric.value}% vs benchmark >{benchmarks['gross_margin']['healthy']*100}%",
+                impact="Vulnerable to price competition and high advertising cost pressure",
+                suggestion="1. Increase price or optimize listing conversion  2. Negotiate BOM/procurement cost  3. Optimize product bundling"
             ))
         elif metric.name == "Net Margin":
             bottlenecks.append(BottleneckItem(
                 priority=priority,
                 severity=severity,
-                title="Net Margin  low ",
-                problem=f"Current {metric.value}% vs Recommendation >{benchmarks['net_margin']['healthy']*100}%",
-                impact="ProfitCapabilityWeak，BusinessCannotSustain",
-                suggestion="1. OptimizationAdvertisingACOS 2. ControlStoragefee 3. Increase average order value"
+                title="Compressed Net Margin",
+                problem=f"Current {metric.value}% vs benchmark >{benchmarks['net_margin']['healthy']*100}%",
+                impact="Weak profitability undermines sustainable business operations",
+                suggestion="1. Optimize ad ACOS / reduce wasted spend  2. Control long-term storage fees  3. Increase AOV (Average Order Value)"
             ))
     
-    # CheckPeriodStoragefee
     if data.has_long_term_storage:
         bottlenecks.append(BottleneckItem(
             priority=2,
-            severity=" in ",
-            title="ExistPeriodStoragefee",
-            problem="PartInventorysuper 365days",
-            impact="amount outside CostExpenditure，CapitalWaste",
-            suggestion="1. ExportLibraryageReport 2. On-site promotion clearanceInventory 3. Remove or destroy"
+            severity="Medium",
+            title="Aged Inventory / Long-Term Storage Surcharges",
+            problem="Part of warehouse inventory exceeds 180-365 days",
+            impact="Incurring punitive storage surcharges that burn operating margin",
+            suggestion="1. Export FBA inventory age report  2. Create outlet/promotional discount clearance  3. Create removal or liquidation orders"
         ))
     
-    #  by excellent first LevelSort
     bottlenecks.sort(key=lambda x: x.priority)
-    
-    return bottlenecks[:3]  #  only Return Top 3
+    return bottlenecks[:3]
 
 
 def analyze(data: SupplyChainInput) -> AnalysisResult:
-    """
-    ExecuteCompleteAnalyze
-    """
+    """Execute complete supply chain analysis"""
     metrics = calculate_metrics(data)
     cost_breakdown = calculate_cost_breakdown(data)
     bottlenecks = diagnose_bottlenecks(data, metrics)
     
-    # GenerateSummary
     danger_count = sum(1 for m in metrics if m.status == HealthStatus.DANGER)
     warning_count = sum(1 for m in metrics if m.status == HealthStatus.WARNING)
     
     if danger_count > 0:
-        summary = f"Found {danger_count} CriticalIssueNeedImmediatelyProcess"
+        summary = f"Found {danger_count} critical issue(s) requiring immediate action"
     elif warning_count > 0:
-        summary = f"Found {warning_count} potential in IssueRecommendationOptimization"
+        summary = f"Found {warning_count} potential optimization opportunity(s)"
     else:
-        summary = "Supply ChainOverallHealthy，CanAttentionSustainOptimization"
+        summary = "Supply chain operations are healthy; continue monitoring"
     
     return AnalysisResult(
         metrics=metrics,
@@ -448,102 +434,168 @@ def analyze(data: SupplyChainInput) -> AnalysisResult:
     )
 
 
-# ============================================================
-# OutputFormat
-# ============================================================
-
-def format_metrics_table(metrics: List[MetricResult]) -> str:
-    """FormatMetricsTable"""
+def format_metrics_table(metrics: List[MetricResult], lang: str = "en") -> str:
+    """Format metrics table"""
     status_icons = {
         HealthStatus.HEALTHY: "✅",
         HealthStatus.WARNING: "⚠️",
         HealthStatus.DANGER: "🔴"
     }
     
-    lines = ["| Metrics | Value | Benchmark | Status |", "|------|------|------|------|"]
+    zh_names = {
+        "Gross Margin": "毛利率",
+        "Inbound Freight Ratio": "头程运费占比",
+        "Net Margin": "净利率",
+        "Inventory Turnover Days": "库存周转天数",
+        "Cash-to-Cash Cycle": "现金周转周期",
+    }
+    
+    if lang == "zh":
+        lines = ["| 核心指标 | 当前数值 | 行业基准 | 状态 |", "|----------|----------|----------|------|"]
+        for m in metrics:
+            icon = status_icons[m.status]
+            name = zh_names.get(m.name, m.name)
+            unit = "天" if m.unit == "days" else m.unit
+            lines.append(f"| {name} | {m.value}{unit} | {m.benchmark}{unit} | {icon} |")
+        return "\n".join(lines)
+        
+    lines = ["| Metric | Value | Benchmark | Status |", "|--------|-------|-----------|--------|"]
     for m in metrics:
         icon = status_icons[m.status]
         lines.append(f"| {m.name} | {m.value}{m.unit} | {m.benchmark}{m.unit} | {icon} |")
-    
     return "\n".join(lines)
 
 
-def format_cost_breakdown(breakdown: Dict[str, float]) -> str:
-    """FormatCostBreakdown"""
+def format_cost_breakdown(breakdown: Dict[str, float], lang: str = "en") -> str:
+    """Format cost breakdown"""
+    if lang == "zh":
+        lines = [
+            f"商品售价 (Price)            ${breakdown['selling_price']:.2f}   100%",
+            "─────────────────────────────",
+            f"采购成本 (FOB)            -${breakdown['product_cost']:.2f}    {breakdown['product_cost_ratio']}%",
+            f"头程运费 (Inbound)        -${breakdown['shipping_cost']:.2f}     {breakdown['shipping_ratio']}%",
+            f"履约配送费 (Fulfillment)  -${breakdown['fba_fee']:.2f}    {breakdown['fba_ratio']}%",
+            f"月度仓储费 (Storage)      -${breakdown['storage_fee']:.2f}     {breakdown['storage_ratio']}%",
+            f"广告营销费 (Ads)          -${breakdown['ad_cost']:.2f}    {breakdown['ad_ratio']}%",
+            f"其他杂费 (Other)          -${breakdown['other_cost']:.2f}     5.0%",
+            "─────────────────────────────",
+            f"净利润 (Net Profit)       ${breakdown['net_profit']:.2f}     {breakdown['net_margin']}%"
+        ]
+        return "\n".join(lines)
+        
     lines = [
         f"Selling Price            ${breakdown['selling_price']:.2f}   100%",
         "─────────────────────────────",
-        f"ProductCost        -${breakdown['product_cost']:.2f}    {breakdown['product_cost_ratio']}%",
-        f"InboundLogistics        -${breakdown['shipping_cost']:.2f}     {breakdown['shipping_ratio']}%",
-        f"FBA Fulfillment      -${breakdown['fba_fee']:.2f}    {breakdown['fba_ratio']}%",
-        f"FBA Storagefee      -${breakdown['storage_fee']:.2f}     {breakdown['storage_ratio']}%",
-        f"Advertisingfee          -${breakdown['ad_cost']:.2f}    {breakdown['ad_ratio']}%",
-        f"OtherFee        -${breakdown['other_cost']:.2f}     5.0%",
+        f"Product Cost        -${breakdown['product_cost']:.2f}    {breakdown['product_cost_ratio']}%",
+        f"Inbound Freight     -${breakdown['shipping_cost']:.2f}     {breakdown['shipping_ratio']}%",
+        f"Fulfillment Fee     -${breakdown['fba_fee']:.2f}    {breakdown['fba_ratio']}%",
+        f"Storage Fee         -${breakdown['storage_fee']:.2f}     {breakdown['storage_ratio']}%",
+        f"Advertising         -${breakdown['ad_cost']:.2f}    {breakdown['ad_ratio']}%",
+        f"Other Fees          -${breakdown['other_cost']:.2f}     5.0%",
         "─────────────────────────────",
         f"Net Profit          ${breakdown['net_profit']:.2f}     {breakdown['net_margin']}%"
     ]
     return "\n".join(lines)
 
 
-def format_bottlenecks(bottlenecks: List[BottleneckItem]) -> str:
-    """FormatBottleneckcolumnTable"""
+def format_bottlenecks(bottlenecks: List[BottleneckItem], lang: str = "en") -> str:
+    """Format bottlenecks list"""
     if not bottlenecks:
-        return "✅ No obvious bottleneck found"
+        return "✅ 未发现明显供应链瓶颈" if lang == "zh" else "✅ No obvious bottleneck found"
     
     lines = []
     priority_icons = {1: "🥇", 2: "🥈", 3: "🥉"}
     
     for i, b in enumerate(bottlenecks, 1):
         icon = priority_icons.get(i, "•")
-        lines.append(f"\n{icon} **【{b.severity}】{b.title}**")
-        lines.append(f"   Issue: {b.problem}")
-        lines.append(f"   Impact: {b.impact}")
-        lines.append(f"   Recommendation: {b.suggestion}")
+        if lang == "zh":
+            severity_zh = {"High": "高风险", "Medium": "中风险", "Low": "低风险"}.get(b.severity, b.severity)
+            lines.append(f"\n{icon} **【{severity_zh}】{b.title}**")
+            lines.append(f"   问题诊断: {b.problem}")
+            lines.append(f"   业务影响: {b.impact}")
+            lines.append(f"   改善建议: {b.suggestion}")
+        else:
+            lines.append(f"\n{icon} **[{b.severity}] {b.title}**")
+            lines.append(f"   Issue: {b.problem}")
+            lines.append(f"   Impact: {b.impact}")
+            lines.append(f"   Action: {b.suggestion}")
     
     return "\n".join(lines)
 
 
-def format_full_report(result: AnalysisResult) -> str:
-    """GenerateCompleteReport"""
-    report = f"""
-🔍 **Supply ChainBottleneck DiagnosisReport**
+def format_full_report(result: AnalysisResult, lang: str = "en") -> str:
+    """Generate complete report"""
+    if lang == "zh":
+        danger_count = sum(1 for m in result.metrics if m.status == HealthStatus.DANGER)
+        warning_count = sum(1 for m in result.metrics if m.status == HealthStatus.WARNING)
+        if danger_count > 0:
+            summary_zh = f"发现 {danger_count} 个高风险瓶颈，建议立即推进改善"
+        elif warning_count > 0:
+            summary_zh = f"发现 {warning_count} 个潜在优化点，可制定优化排期"
+        else:
+            summary_zh = "供应链整体健康，请持续保持运营指标"
+            
+        return f"""
+🔍 **供应链瓶颈与成本诊断报告**
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 **核心指标诊断**
+
+{format_metrics_table(result.metrics, lang="zh")}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💰 **单件成本结构拆解**
+
+```
+{format_cost_breakdown(result.cost_breakdown, lang="zh")}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎯 **关键瓶颈诊断与行动建议 (Top 3)**
+
+{format_bottlenecks(result.bottlenecks, lang="zh")}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📋 **诊断总结**: {summary_zh}
+"""
+
+    return f"""
+🔍 **Supply Chain Bottleneck Diagnosis Report**
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📊 **Key Metrics**
 
-{format_metrics_table(result.metrics)}
+{format_metrics_table(result.metrics, lang="en")}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-💰 **CostStructure breakdown** ( each piece)
+💰 **Cost Breakdown (Per Unit)**
 
 ```
-{format_cost_breakdown(result.cost_breakdown)}
+{format_cost_breakdown(result.cost_breakdown, lang="en")}
 ```
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 🎯 **Top 3 Bottleneck Diagnosis**
 
-{format_bottlenecks(result.bottlenecks)}
+{format_bottlenecks(result.bottlenecks, lang="en")}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 📋 **Summary**: {result.summary}
 """
-    return report
 
-
-# ============================================================
-# CLI Entry Point
-# ============================================================
 
 def main():
-    """CLI Entry Point - use at Test"""
+    """CLI Entry Point"""
     import sys
     
-    # ExampleData
     test_data = SupplyChainInput(
         product_cost=8.00,
         supplier_payment_days=0,
@@ -559,20 +611,40 @@ def main():
         platform="amazon"
     )
     
-    # If JSON input provided
-    if len(sys.argv) > 1:
+    args = sys.argv[1:]
+    lang = "zh" if "--zh" in args else "en"
+    args = [a for a in args if a != "--zh"]
+    
+    if "--help" in args or "-h" in args:
+        print("""Usage: python3 calculator.py [OPTIONS] [JSON_STRING]
+Options:
+  --demo            Run with standard demo supply chain data
+  --zh              Output report in Chinese
+  --json <string>   Pass JSON object of supply chain inputs
+  --help, -h        Show this help message
+""")
+        return
+        
+    json_str = None
+    if "--json" in args:
+        idx = args.index("--json")
+        if idx + 1 < len(args):
+            json_str = args[idx + 1]
+            args.pop(idx + 1)
+        args.pop(idx)
+    elif len(args) > 0 and args[0] != "--demo":
+        json_str = args[0]
+        
+    if json_str:
         try:
-            input_json = json.loads(sys.argv[1])
+            input_json = json.loads(json_str)
             test_data = SupplyChainInput(**input_json)
         except Exception as e:
             print(f"Error parsing input: {e}")
             sys.exit(1)
-    
-    # ExecuteAnalyze
+            
     result = analyze(test_data)
-    
-    # OutputReport
-    print(format_full_report(result))
+    print(format_full_report(result, lang=lang))
     
     # Output JSON (For program call)
     # print(json.dumps({

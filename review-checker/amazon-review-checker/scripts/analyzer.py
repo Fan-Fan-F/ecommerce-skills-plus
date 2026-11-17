@@ -107,49 +107,62 @@ class AnalysisResult:
 # DetectionAlgorithm
 # ============================================================
 
+def tokenize_text(text: str) -> List[str]:
+    """Tokenize text supporting both English words and Chinese CJK characters"""
+    if re.search(r'[\u4e00-\u9fff]', text):
+        clean = re.sub(r'[^\w\u4e00-\u9fff]+', '', text.lower())
+        if len(clean) <= 1:
+            return list(clean)
+        # Bi-gram sliding window for CJK text
+        return [clean[i:i+2] for i in range(len(clean)-1)]
+    return text.lower().split()
+
+
 def detect_content_similarity(reviews: List[Review]) -> DimensionResult:
-    """DetectionSimilar contentDegree"""
+    """Detection Content Similarity"""
     if len(reviews) < 2:
         return DimensionResult(
             name="Content Similarity",
-            name_zh="Similar contentDegree",
+            name_zh="内容相似度",
             score=0,
             status="✅",
             detail="Not enough reviews to compare",
-            detail_zh="Review CountInsufficient，CannotComparison",
+            detail_zh="评价数量不足，无法进行相似度对比",
             weight=0.20
         )
     
-    # Simple similarityDegreeDetection：CheckRepeated phrases
     contents = [r.content.lower() for r in reviews]
     
-    # Extract3-gram
+    # Extract n-grams supporting both English and CJK text
     def get_ngrams(text, n=3):
-        words = re.findall(r'\w+', text)
-        return [' '.join(words[i:i+n]) for i in range(len(words)-n+1)]
+        if re.search(r'[\u4e00-\u9fff]', text):
+            clean = re.sub(r'[^\w\u4e00-\u9fff]+', '', text.lower())
+            return [clean[i:i+n] for i in range(len(clean)-n+1)]
+        else:
+            words = re.findall(r'\w+', text.lower())
+            return [' '.join(words[i:i+n]) for i in range(len(words)-n+1)]
     
     all_ngrams = []
     for content in contents:
         all_ngrams.extend(get_ngrams(content))
     
-    # Statistics heavy complex
     ngram_counts = Counter(all_ngrams)
     repeated = sum(1 for count in ngram_counts.values() if count > 1)
     total = len(ngram_counts) if ngram_counts else 1
     
     similarity_ratio = repeated / total if total > 0 else 0
-    score = min(100, similarity_ratio * 500)  # put big 
+    score = min(100, similarity_ratio * 500)
     
-    # CheckHighDegreeSimilarReview for 
+    # Check similar pairs using language-aware tokens
     similar_pairs = 0
     for i, c1 in enumerate(contents):
         for c2 in contents[i+1:]:
-            if len(c1) > 20 and len(c2) > 20:
-                # Simple Jaccard SimilarDegree
-                set1, set2 = set(c1.split()), set(c2.split())
-                if set1 and set2:
-                    jaccard = len(set1 & set2) / len(set1 | set2)
-                    if jaccard > 0.5:
+            if len(c1) >= 10 and len(c2) >= 10:
+                tokens1 = set(tokenize_text(c1))
+                tokens2 = set(tokenize_text(c2))
+                if tokens1 and tokens2:
+                    jaccard = len(tokens1 & tokens2) / len(tokens1 | tokens2)
+                    if jaccard > 0.45:
                         similar_pairs += 1
     
     if similar_pairs > 0:
@@ -166,27 +179,25 @@ def detect_content_similarity(reviews: List[Review]) -> DimensionResult:
     
     return DimensionResult(
         name="Content Similarity",
-        name_zh="Similar contentDegree",
+        name_zh="内容相似度 (水军模板)",
         score=round(score, 1),
         status=status,
         detail=f"Found {similar_pairs} similar review pairs",
-        detail_zh=f"Found {similar_pairs} groupHighDegreeSimilarReview",
+        detail_zh=f"检测到 {similar_pairs} 组高度重复/相似评价",
         weight=0.20
     )
 
 
 def detect_time_clustering(reviews: List[Review]) -> Optional[DimensionResult]:
-    """DetectionTimeAggregate"""
+    """Detection Time Clustering"""
     dated_reviews = [r for r in reviews if r.has_date]
     
     if len(dated_reviews) < 5:
-        return None  # DataInsufficient
+        return None
     
-    # ParseDayPeriod
     dates = []
     for r in dated_reviews:
         try:
-            # TryMultipleFormat
             for fmt in ['%Y-%m-%d', '%B %d, %Y', '%d %B %Y', '%m/%d/%Y']:
                 try:
                     dates.append(datetime.strptime(r.date, fmt))
@@ -200,20 +211,15 @@ def detect_time_clustering(reviews: List[Review]) -> Optional[DimensionResult]:
         return None
     
     dates.sort()
-    
-    # CalculateAdjacentReviewTimeseparate
     intervals = [(dates[i+1] - dates[i]).days for i in range(len(dates)-1)]
-    
     if not intervals:
         return None
     
-    # DetectionAggregate： short Time inside Large amountReview
-    short_intervals = sum(1 for i in intervals if i <= 1)  # 1days inside 
+    short_intervals = sum(1 for i in intervals if i <= 1)
     clustering_ratio = short_intervals / len(intervals)
     
-    # Detection 48h Outbreak
     burst_count = 0
-    window_size = 2  # 2daysWindow
+    window_size = 2
     for i in range(len(dates) - 1):
         count_in_window = sum(1 for d in dates if 0 <= (d - dates[i]).days <= window_size)
         burst_count = max(burst_count, count_in_window)
@@ -237,11 +243,11 @@ def detect_time_clustering(reviews: List[Review]) -> Optional[DimensionResult]:
     
     return DimensionResult(
         name="Time Clustering",
-        name_zh="TimeAggregate",
+        name_zh="时间聚合度 (集中刷评)",
         score=round(score, 1),
         status=status,
         detail=f"Max {burst_count} reviews in 48h window, {clustering_ratio*100:.0f}% within 1 day",
-        detail_zh=f"48h inside  most  many  {burst_count} itemReview，{clustering_ratio*100:.0f}%  in 1days inside ",
+        detail_zh=f"48小时内最高爆发 {burst_count} 条评价，{clustering_ratio*100:.0f}% 集中在1天内",
         weight=0.25
     )
 
@@ -296,14 +302,21 @@ def detect_rating_distribution(reviews: List[Review]) -> Optional[DimensionResul
         status = "🔴"
     
     dist_str = ", ".join([f"{r}★:{rating_counts.get(r,0)}" for r in [5,4,3,2,1]])
+    anomaly_zh = []
+    if five_star_ratio > 0.85:
+        anomaly_zh.append(f"五星好评占比过高 ({five_star_ratio*100:.0f}%)")
+    if extreme_ratio > 0.9 and one_star_ratio > 0.1:
+        anomaly_zh.append("两极分化严重 (刷单与差评冲突)")
+    if mid_ratings / total < 0.1 and total > 10:
+        anomaly_zh.append("中评断层缺失")
     
     return DimensionResult(
         name="Rating Distribution",
-        name_zh="Rating Distribution",
+        name_zh="评分分布异常度",
         score=round(score, 1),
         status=status,
         detail=f"Distribution: {dist_str}. {'; '.join(anomaly_detail) if anomaly_detail else 'Normal'}",
-        detail_zh=f"Distribution: {dist_str}。{'; '.join(anomaly_detail) if anomaly_detail else 'Normal'}",
+        detail_zh=f"星级分布: {dist_str}。{'; '.join(anomaly_zh) if anomaly_zh else '分布自然'}",
         weight=0.20
     )
 
@@ -318,7 +331,6 @@ def detect_vp_ratio(reviews: List[Review]) -> Optional[DimensionResult]:
     vp_count = sum(1 for r in vp_reviews if r.verified_purchase)
     vp_ratio = vp_count / len(vp_reviews)
     
-    # Normal VP Ratio should  should  in  60-80%
     score = 0
     if vp_ratio < 0.4:
         score = 70
@@ -338,27 +350,27 @@ def detect_vp_ratio(reviews: List[Review]) -> Optional[DimensionResult]:
     
     return DimensionResult(
         name="Verified Purchase Ratio",
-        name_zh="VPRatio",
+        name_zh="真实购买VP认证率",
         score=round(score, 1),
         status=status,
         detail=f"{vp_ratio*100:.0f}% verified purchase ({vp_count}/{len(vp_reviews)})",
-        detail_zh=f"{vp_ratio*100:.0f}%  already VerifyPurchase ({vp_count}/{len(vp_reviews)})",
+        detail_zh=f"已认证购买率 {vp_ratio*100:.0f}% ({vp_count}/{len(vp_reviews)})",
         weight=0.15
     )
 
 
 def detect_review_length(reviews: List[Review]) -> DimensionResult:
-    """DetectionReviewDegreeDistribution"""
+    """Detection Review Length and Templatization"""
     lengths = [len(r.content) for r in reviews]
     
     if not lengths:
         return DimensionResult(
             name="Review Length",
-            name_zh="ReviewDegree",
+            name_zh="评论长度与模板化检测",
             score=0,
             status="✅",
             detail="No reviews",
-            detail_zh="noReview",
+            detail_zh="暂无评论数据",
             weight=0.05
         )
     
@@ -366,17 +378,16 @@ def detect_review_length(reviews: List[Review]) -> DimensionResult:
     short_count = sum(1 for l in lengths if l < 50)
     short_ratio = short_count / len(lengths)
     
-    # DetectionTemplate（DegreeHighDegreeConsistent）
     if len(lengths) > 5:
         length_std = (sum((l - avg_length) ** 2 for l in lengths) / len(lengths)) ** 0.5
-        cv = length_std / avg_length if avg_length > 0 else 0  # Variation coefficient
+        cv = length_std / avg_length if avg_length > 0 else 0
     else:
         cv = 1
     
     score = 0
     if short_ratio > 0.7:
         score += 40
-    if cv < 0.3 and len(lengths) > 10:  # DegreeToo consistent
+    if cv < 0.3 and len(lengths) > 10:
         score += 40
     
     score = min(100, score)
@@ -390,25 +401,26 @@ def detect_review_length(reviews: List[Review]) -> DimensionResult:
     
     return DimensionResult(
         name="Review Length",
-        name_zh="ReviewDegree",
+        name_zh="评论长度与模板化检测",
         score=round(score, 1),
         status=status,
         detail=f"Avg length: {avg_length:.0f} chars, {short_ratio*100:.0f}% short (<50)",
-        detail_zh=f"AverageDegree: {avg_length:.0f} Character, {short_ratio*100:.0f}%   short  (<50)",
+        detail_zh=f"平均长度: {avg_length:.0f} 字符，{short_ratio*100:.0f}% 为超短评 (<50字)",
         weight=0.05
     )
 
 
 def detect_keywords(reviews: List[Review]) -> DimensionResult:
-    """DetectionFake ordersKeywords"""
-    # Common fake ordersReviewKeywords
+    """Detection Incentivized & Fake Order Keywords"""
     suspicious_keywords = [
         'received free', 'free product', 'in exchange', 'honest review',
         'discount code', 'promotional', 'gifted', 'complimentary',
         'five stars', '5 stars', 'best ever', 'amazing product',
         'highly recommend', 'must buy', 'perfect product',
-        #  in text
-        'Positive ReviewCashback', 'Five starPositive Review', 'Free trial', 'Gift'
+        # Chinese authentic e-commerce manipulation keywords
+        '好评返现', '五星好评', '返红包', '刷单', '加微信', '免费送',
+        '带图好评', '拍a发b', '免费领取', '返现', '微信返', '客服返',
+        '五星好评返', '好评截图', '联系返', '免费试用'
     ]
     
     keyword_hits = 0
@@ -431,50 +443,58 @@ def detect_keywords(reviews: List[Review]) -> DimensionResult:
     
     return DimensionResult(
         name="Suspicious Keywords",
-        name_zh="SuspiciousKeywords",
+        name_zh="可疑刷单/返现关键词",
         score=round(score, 1),
         status=status,
         detail=f"{keyword_hits} reviews contain suspicious keywords",
-        detail_zh=f"{keyword_hits} itemReviewPackagecontainSuspiciousKeywords",
+        detail_zh=f"发现 {keyword_hits} 条评价包含利益诱导/返现/刷单等特征词",
         weight=0.05
     )
 
 
 def identify_suspicious_reviews(reviews: List[Review], dimensions: List[DimensionResult]) -> List[SuspiciousReview]:
-    """IdentifyHigh RiskReview"""
+    """Identify High Risk Reviews"""
     suspicious = []
+    
+    generic_phrases_en = ['great', 'amazing', 'perfect', 'love it', 'best', 'excellent']
+    generic_phrases_zh = ['很好', '非常好', '太棒了', '质量好', '很喜欢', '完美', '五星好评', '强烈推荐', '满意', '正品', '物流快']
+    incentive_keywords = [
+        'received free', 'in exchange', 'honest review', 'discount', 'free product',
+        '好评返现', '五星好评', '返红包', '刷单', '加微信', '免费送', '带图好评', '返现'
+    ]
     
     for review in reviews:
         risk_score = 0
         reasons = []
         reasons_zh = []
+        c_lower = review.content.lower()
         
-        #  short Review
+        # Short Review
         if len(review.content) < 30:
             risk_score += 20
             reasons.append("Very short review")
-            reasons_zh.append("Review  short ")
+            reasons_zh.append("评论字数过短")
         
-        # non VP
+        # Non-VP
         if review.has_vp and not review.verified_purchase:
             risk_score += 25
             reasons.append("Not verified purchase")
-            reasons_zh.append("nonVerifyPurchase")
+            reasons_zh.append("非真实买家VP认证购买")
         
-        # ExtremeRating + TemplateContent
+        # Extreme Rating + Template Content
         if review.has_rating and review.rating == 5:
-            generic_phrases = ['great', 'amazing', 'perfect', 'love it', 'best', 'excellent']
-            if any(p in review.content.lower() for p in generic_phrases) and len(review.content) < 100:
+            has_generic_en = any(p in c_lower for p in generic_phrases_en) and len(review.content) < 100
+            has_generic_zh = any(p in c_lower for p in generic_phrases_zh) and len(review.content) < 60
+            if has_generic_en or has_generic_zh:
                 risk_score += 30
                 reasons.append("Generic 5-star template")
-                reasons_zh.append("Template5starPositive Review")
+                reasons_zh.append("通用模板化五星水评")
         
-        # SuspiciousKeywords
-        suspicious_keywords = ['received free', 'in exchange', 'honest review', 'discount']
-        if any(k in review.content.lower() for k in suspicious_keywords):
+        # Suspicious Keywords
+        if any(k in c_lower for k in incentive_keywords):
             risk_score += 35
             reasons.append("Contains incentivized review keywords")
-            reasons_zh.append("Contains incentiveReviewKeywords")
+            reasons_zh.append("包含好评返现/利益诱导特征词")
         
         if risk_score >= 40:
             suspicious.append(SuspiciousReview(
@@ -484,7 +504,6 @@ def identify_suspicious_reviews(reviews: List[Review], dimensions: List[Dimensio
                 reasons_zh=reasons_zh
             ))
     
-    #  by RiskScoreSort
     suspicious.sort(key=lambda x: x.risk_score, reverse=True)
     return suspicious[:10]  # Top 10
 
@@ -540,19 +559,19 @@ def generate_deepening_hints(missing: List[str]) -> Tuple[List[str], List[str]]:
     hint_map = {
         "rating": (
             "Add star ratings → Unlock 'Rating Distribution Analysis'",
-            "Add starLevelRating → Unlock「Rating DistributionAnalyze」"
+            "补充星级评分数据 → 解锁「评分分布离散度检测」"
         ),
         "date": (
             "Add review dates → Unlock 'Time Clustering Detection'",
-            "SupplementReviewDayPeriod → Unlock「TimeAggregateDetection」"
+            "补充评价发布日期 → 解锁「时间爆发聚集度检测」"
         ),
         "verified_purchase": (
             "Add VP status → Unlock 'Verified Purchase Analysis'",
-            "SupplementVPStatus → Unlock「PurchaseVerifyAnalyze」"
+            "补充买家VP认证状态 → 解锁「真实购买转化率排查」"
         ),
         "reviewer_info": (
             "Add reviewer info → Unlock 'Account Profile Analysis'",
-            "SupplementReviewpersonInformation → Unlock「Account profileAnalyze」"
+            "补充买家账号信息 → 解锁「职业刷单账号画像检测」"
         ),
     }
     
@@ -632,16 +651,16 @@ def analyze_reviews(reviews: List[Review], asin: str = "UNKNOWN") -> AnalysisRes
     # IdentifySuspiciousReview
     suspicious = identify_suspicious_reviews(reviews, dimensions)
     
-    # GenerateSummary
+    # Generate Summary
     risk_text = {
-        RiskLevel.LOW: ("Low risk - Reviews appear authentic", "Low Risk - ReviewLooks likeReal"),
-        RiskLevel.MEDIUM: ("Medium risk - Some concerns detected", " in  etcRisk - FoundSomeConcern"),
-        RiskLevel.HIGH: ("High risk - Multiple red flags", "High Risk -  many DangerSignal"),
-        RiskLevel.CRITICAL: ("Critical risk - Likely fake reviews", "CriticalRisk - MayExistLarge amountFakeReview"),
+        RiskLevel.LOW: ("Low risk - Reviews appear authentic", "低风险 - 评价真实度高，未见异常刷单迹象"),
+        RiskLevel.MEDIUM: ("Medium risk - Some concerns detected", "中度风险 - 存在部分轻度聚集或模板化可疑点"),
+        RiskLevel.HIGH: ("High risk - Multiple red flags", "高风险 - 触发多项高危特征 (集中刷单/水军嫌疑大)"),
+        RiskLevel.CRITICAL: ("Critical risk - Likely fake reviews", "极高风险 - 极大概率存在虚假操纵/好评返现刷单"),
     }
     
     summary_en = f"{risk_text[risk_level][0]}. Analyzed {len(reviews)} reviews at {level.value} level."
-    summary_zh = f"{risk_text[risk_level][1]}。Analyze  {len(reviews)} itemReview，AnalyzelayerLevel {level.value}。"
+    summary_zh = f"{risk_text[risk_level][1]}。共分析 {len(reviews)} 条评价，分析深度层级为 {level.value}。"
     
     return AnalysisResult(
         asin=asin,
@@ -675,21 +694,21 @@ def format_report(result: AnalysisResult, lang: str = "en") -> str:
     
     if lang == "zh":
         lines = [
-            f"📊 **ReviewAuthenticityAnalyzeReport**",
+            f"📊 **商品评价真实性与防刷单诊断报告**",
             f"",
             f"**ASIN**: {result.asin}",
-            f"**Review Count**: {result.total_reviews}",
-            f"**AnalyzelayerLevel**: {result.analysis_level.value}",
+            f"**评价分析样本**: {result.total_reviews} 条",
+            f"**分析深度层级**: {result.analysis_level.value}",
             f"",
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             f"",
-            f"## AuthenticityRating: {result.authenticity_score}/100 {risk_icons[result.risk_level]}",
+            f"## 评价真实度得分: {result.authenticity_score}/100 {risk_icons[result.risk_level]}",
             f"",
             f"{result.summary_zh}",
             f"",
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             f"",
-            f"## DetectiondimensionDegree",
+            f"## 多维度特征排查",
             f"",
         ]
         
@@ -701,18 +720,18 @@ def format_report(result: AnalysisResult, lang: str = "en") -> str:
         if result.suspicious_reviews:
             lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             lines.append("")
-            lines.append(f"## High RiskReview (Top {len(result.suspicious_reviews)})")
+            lines.append(f"## 疑似刷单/高风险评价 (Top {len(result.suspicious_reviews)})")
             lines.append("")
             for i, sr in enumerate(result.suspicious_reviews[:5], 1):
-                lines.append(f"**{i}. Risk {sr.risk_score:.0f}%**")
+                lines.append(f"**{i}. 风险指数 {sr.risk_score:.0f}%**")
                 lines.append(f'   "{sr.content}"')
-                lines.append(f"   Reason: {', '.join(sr.reasons_zh)}")
+                lines.append(f"   判定原因: {', '.join(sr.reasons_zh)}")
                 lines.append("")
         
         if result.deepening_hints_zh:
             lines.append("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             lines.append("")
-            lines.append("🔍 **Want more accurateAnalyze？Supplement with following info:**")
+            lines.append("🔍 **若需更高精度诊断，建议补充以下字段：**")
             lines.append("")
             for hint in result.deepening_hints_zh:
                 lines.append(f"• {hint}")
@@ -768,35 +787,25 @@ def format_report(result: AnalysisResult, lang: str = "en") -> str:
 # ============================================================
 
 def parse_simple_reviews(text: str) -> List[Review]:
-    """ParseSimpleTextFormatReview"""
+    """Parse simple text reviews separated by paragraphs"""
     reviews = []
-    
-    # TrySplit by paragraph
     paragraphs = re.split(r'\n\n+', text.strip())
     
     for para in paragraphs:
         para = para.strip()
-        if len(para) > 10:
+        if len(para) >= 2:
             review = Review(content=para)
-            
-            # TryExtract starLevel
-            star_match = re.search(r'(\d)\s*(?:star|★|⭐)', para, re.I)
+            star_match = re.search(r'(\d)\s*(?:star|★|⭐|星)', para, re.I)
             if star_match:
                 review.rating = int(star_match.group(1))
-            
-            # TryExtractDayPeriod
             date_match = re.search(r'(\d{4}-\d{2}-\d{2}|\w+\s+\d{1,2},?\s+\d{4})', para)
             if date_match:
                 review.date = date_match.group(1)
-            
-            # TryExtract VP
-            if 'verified purchase' in para.lower() or 'VP' in para:
+            if 'verified purchase' in para.lower() or 'vp' in para.lower() or '已购买' in para:
                 review.verified_purchase = True
-            elif 'not verified' in para.lower():
+            elif 'not verified' in para.lower() or '未认证' in para:
                 review.verified_purchase = False
-            
             reviews.append(review)
-    
     return reviews
 
 
@@ -806,7 +815,6 @@ def parse_simple_reviews(text: str) -> List[Review]:
 
 def main():
     """CLI Entry Point"""
-    # TestData
     test_reviews = [
         Review(content="Great product! Works perfectly. Highly recommend to everyone.", rating=5, verified_purchase=True, date="2024-01-15"),
         Review(content="Amazing! Best purchase ever. Love it!", rating=5, verified_purchase=False, date="2024-01-15"),
@@ -820,27 +828,34 @@ def main():
         Review(content="Decent product for the price.", rating=3, verified_purchase=True, date="2024-03-01"),
     ]
     
-    # If command lineInput
-    if len(sys.argv) > 1:
-        arg = sys.argv[1]
-        if arg == "--demo":
-            pass  # UseTestData
-        elif arg.startswith('['):
-            # JSON group
+    args = sys.argv[1:]
+    lang = "zh" if "--zh" in args else "en"
+    args = [a for a in args if a != "--zh"]
+    
+    if "--help" in args or "-h" in args:
+        print("""Usage: python3 analyzer.py [OPTIONS] [REVIEWS_DATA]
+Options:
+  --demo            Run with built-in test review dataset
+  --zh              Output report in Chinese
+  --json <string>   Pass JSON array of reviews
+  --help, -h        Show this help message
+""")
+        return
+        
+    if len(args) > 0 and args[0] != "--demo":
+        arg = args[0]
+        if arg.startswith('['):
             try:
                 data = json.loads(arg)
                 test_reviews = [Review(**r) for r in data]
-            except:
-                pass
+            except Exception as e:
+                print(f"Error parsing JSON: {e}")
+                sys.exit(1)
         else:
-            # pureText
             test_reviews = parse_simple_reviews(arg)
     
     result = analyze_reviews(test_reviews, asin="B08XXXXX")
-    
-    # Default ChineseOutput
-    lang = "zh" if "--zh" in sys.argv else "en"
-    print(format_report(result, lang))
+    print(format_report(result, lang=lang))
 
 
 if __name__ == "__main__":

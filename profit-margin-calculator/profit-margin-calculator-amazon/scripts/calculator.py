@@ -214,24 +214,26 @@ def calculate_costs(product: ProductInput) -> CostBreakdown:
 
 def calculate_break_even(product: ProductInput, costs: CostBreakdown) -> BreakEvenAnalysis:
     """Calculate break-even point"""
-    # Variable cost (per unit)
-    variable_cost = (
+    # Fixed-type unit costs independent of selling price
+    fixed_unit_cost = (
         product.product_cost +
         product.shipping_cost +
         product.fba_fulfillment_fee +
         product.fba_storage_fee +
-        costs.referral_fee +
-        costs.return_cost +
-        product.other_fees
+        product.other_fees +
+        costs.return_cost
     )
     
-    # Minimum price (cover variable cost + ad spend)
-    # Ad ratio unchanged: min_price - variable_cost - min_price * ad_ratio = 0
-    # min_price * (1 - ad_ratio) = variable_cost
-    if product.ad_spend_ratio < 1:
-        min_price = variable_cost / (1 - product.ad_spend_ratio)
+    # Referral fee rate
+    referral_rate = get_referral_fee_rate(product.category, product.referral_fee_rate)
+    
+    # Minimum price (cover variable cost + referral commission + ad spend)
+    # min_price * (1 - referral_rate - ad_spend_ratio) = fixed_unit_cost
+    denominator = 1 - referral_rate - product.ad_spend_ratio
+    if denominator > 0:
+        min_price = fixed_unit_cost / denominator
     else:
-        min_price = variable_cost * 2  # Abnormal case
+        min_price = fixed_unit_cost * 2  # Abnormal case
     
     # Break-even units (if fixed costs exist)
     if product.fixed_costs > 0 and costs.net_profit > 0:
@@ -265,7 +267,7 @@ def calculate_pricing_suggestions(product: ProductInput, target_margins: List[fl
         product.fba_fulfillment_fee +
         product.fba_storage_fee +
         product.other_fees +
-        product.return_rate * product.return_processing_fee
+        product.return_rate * (product.return_processing_fee + product.product_cost * 0.5)
     )
     
     referral_rate = get_referral_fee_rate(product.category, product.referral_fee_rate)
@@ -310,12 +312,12 @@ def analyze_product(product: ProductInput, target_margins: List[float] = None) -
     pricing = calculate_pricing_suggestions(product, target_margins)
     status = evaluate_profit_status(costs.net_margin)
     
-    # Generate summary
+    # Generate summary without duplicated icon
     status_text = {
-        ProfitStatus.HEALTHY: "✅ Healthy",
-        ProfitStatus.WARNING: "⚠️ Warning",
-        ProfitStatus.DANGER: "🔴 Danger",
-        ProfitStatus.LOSS: "💀 Loss",
+        ProfitStatus.HEALTHY: "Healthy",
+        ProfitStatus.WARNING: "Warning",
+        ProfitStatus.DANGER: "Danger",
+        ProfitStatus.LOSS: "Loss",
     }
     summary = f"{status_text[status]} | Net Margin {costs.net_margin*100:.1f}% | Profit/Unit ${costs.net_profit:.2f}"
     
@@ -395,7 +397,64 @@ def format_pricing_suggestions(suggestions: List[PricingSuggestion], current_pri
     return "\n".join(lines)
 
 
-def format_full_report(result: AnalysisResult) -> str:
+def format_cost_breakdown_zh(costs: CostBreakdown) -> str:
+    """Format cost breakdown in Chinese"""
+    def pct(val):
+        return f"{val/costs.selling_price*100:.1f}%" if costs.selling_price > 0 else "0%"
+    
+    lines = [
+        f"商品售价 (Price)       ${costs.selling_price:.2f}   100%",
+        "─" * 40,
+        f"采购成本 (FOB)        -${costs.product_cost:.2f}    {pct(costs.product_cost)}",
+        f"头程运费 (Shipping)   -${costs.shipping_cost:.2f}    {pct(costs.shipping_cost)}",
+        f"FBA配送费 (Fulfillment) -${costs.fba_fulfillment_fee:.2f}    {pct(costs.fba_fulfillment_fee)}",
+        f"FBA仓储费 (Storage)   -${costs.fba_storage_fee:.2f}    {pct(costs.fba_storage_fee)}",
+        f"平台佣金 (Referral)   -${costs.referral_fee:.2f}    {pct(costs.referral_fee)}",
+        f"广告支出 (Ad Spend)   -${costs.ad_cost:.2f}    {pct(costs.ad_cost)}",
+        f"退货损失 (Returns)    -${costs.return_cost:.2f}    {pct(costs.return_cost)}",
+        f"其他费用 (Other)      -${costs.other_fees:.2f}    {pct(costs.other_fees)}",
+        "─" * 40,
+        f"总成本 (Total Cost)   ${costs.total_cost:.2f}    {pct(costs.total_cost)}",
+        f"净利润 (Net Profit)   ${costs.net_profit:.2f}    {costs.net_margin*100:.1f}%",
+    ]
+    return "\n".join(lines)
+
+
+def format_break_even_zh(be: BreakEvenAnalysis, current_price: float) -> str:
+    """Format break-even analysis in Chinese"""
+    lines = [
+        f"保本价格 (Break-even): ${be.min_price:.2f}",
+        f"├── 低于此价格将发生亏损",
+        f"",
+        f"当前售价: ${current_price:.2f}",
+        f"├── 高于保本价 {be.current_margin_above_min*100:.1f}%",
+        f"",
+        f"安全边际率: {be.safety_margin*100:.1f}%",
+        f"├── 具有降价促销/应对价格战空间",
+    ]
+    if be.break_even_units > 0:
+        lines.extend([
+            f"",
+            f"保本销量: {be.break_even_units} 件",
+            f"├── 覆盖固定成本所需达到的最低销售件数",
+        ])
+    return "\n".join(lines)
+
+
+def format_pricing_suggestions_zh(suggestions: List[PricingSuggestion], current_price: float, current_margin: float) -> str:
+    """Format pricing recommendations in Chinese"""
+    lines = [
+        "| 目标净利率 | 建议售价 | 单件利润 |",
+        "|------------|----------|----------|",
+    ]
+    for s in suggestions:
+        lines.append(f"| {s.target_margin*100:.0f}% | ${s.suggested_price:.2f} | ${s.profit_per_unit:.2f} |")
+    
+    lines.append(f"\n当前售价 ${current_price:.2f} → 当前净利率 {current_margin*100:.1f}%")
+    return "\n".join(lines)
+
+
+def format_full_report(result: AnalysisResult, lang: str = "en") -> str:
     """Generate full report"""
     status_icons = {
         ProfitStatus.HEALTHY: "✅",
@@ -403,6 +462,41 @@ def format_full_report(result: AnalysisResult) -> str:
         ProfitStatus.DANGER: "🔴",
         ProfitStatus.LOSS: "💀",
     }
+    
+    if lang == "zh":
+        status_text_zh = {
+            ProfitStatus.HEALTHY: "健康良好",
+            ProfitStatus.WARNING: "轻度预警",
+            ProfitStatus.DANGER: "危险微利",
+            ProfitStatus.LOSS: "亏损警告",
+        }
+        summary_zh = f"{status_text_zh[result.status]} | 净利率 {result.cost_breakdown.net_margin*100:.1f}% | 单件净利 ${result.cost_breakdown.net_profit:.2f}"
+        return f"""
+💰 **亚马逊利润与保本分析报告**
+
+**商品**: {result.product.name} ({result.product.sku})
+**状态**: {status_icons[result.status]} {summary_zh}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📊 **成本结构明细**
+
+```
+{format_cost_breakdown_zh(result.cost_breakdown)}
+```
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📈 **保本点分析 (Break-Even)**
+
+{format_break_even_zh(result.break_even, result.product.selling_price)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 **目标净利率定价建议**
+
+{format_pricing_suggestions_zh(result.pricing_suggestions, result.product.selling_price, result.cost_breakdown.net_margin)}
+"""
     
     report = f"""
 💰 **Amazon Profit Analysis Report**
@@ -429,7 +523,6 @@ def format_full_report(result: AnalysisResult) -> str:
 💡 **Pricing Recommendations**
 
 {format_pricing_suggestions(result.pricing_suggestions, result.product.selling_price, result.cost_breakdown.net_margin)}
-
 """
     return report
 
@@ -522,12 +615,54 @@ def main():
         category="kitchen",
     )
     
-    # If JSON input provided
-    if len(sys.argv) > 1:
+    args = sys.argv[1:]
+    lang = "zh" if "--zh" in args else "en"
+    args = [a for a in args if a != "--zh"]
+    
+    if "--help" in args or "-h" in args:
+        print("""Usage: python3 calculator.py [OPTIONS] [JSON_STRING]
+Options:
+  --demo            Run with standard demo product
+  --zh              Output report in Chinese
+  --json <string>   Pass JSON object or array of products
+  --csv <file>      Read and batch analyze from CSV file
+  --help, -h        Show this help message
+""")
+        return
+        
+    csv_file = None
+    if "--csv" in args:
+        idx = args.index("--csv")
+        if idx + 1 < len(args):
+            csv_file = args[idx + 1]
+            args.pop(idx + 1)
+        args.pop(idx)
+        
+    if csv_file:
         try:
-            input_data = json.loads(sys.argv[1])
+            with open(csv_file, 'r', encoding='utf-8') as f:
+                products = parse_csv(f.read())
+            results = analyze_batch(products)
+            print(format_batch_summary(results))
+            return
+        except Exception as e:
+            print(f"Error reading CSV file '{csv_file}': {e}")
+            sys.exit(1)
+            
+    json_str = None
+    if "--json" in args:
+        idx = args.index("--json")
+        if idx + 1 < len(args):
+            json_str = args[idx + 1]
+            args.pop(idx + 1)
+        args.pop(idx)
+    elif len(args) > 0 and args[0] != "--demo":
+        json_str = args[0]
+        
+    if json_str:
+        try:
+            input_data = json.loads(json_str)
             if isinstance(input_data, list):
-                # Batch mode
                 products = [ProductInput(**p) for p in input_data]
                 results = analyze_batch(products)
                 print(format_batch_summary(results))
@@ -535,12 +670,12 @@ def main():
             else:
                 test_product = ProductInput(**input_data)
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error parsing JSON input: {e}")
             sys.exit(1)
-    
+            
     # Single product analysis
     result = analyze_product(test_product)
-    print(format_full_report(result))
+    print(format_full_report(result, lang=lang))
 
 
 if __name__ == "__main__":

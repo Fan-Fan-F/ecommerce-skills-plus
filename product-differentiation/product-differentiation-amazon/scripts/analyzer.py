@@ -59,50 +59,50 @@ class DiffAngle(Enum):
 PAIN_POINT_KEYWORDS = {
     "quality": {
         "en": ["cheap", "broke", "broken", "flimsy", "poor quality", "fell apart", "defective", "doesn't last", "stopped working"],
-        "zh": ["Poor quality", " bad  ", "Fragile", "Poor workmanship", "Not durable", "StopWork"],
+        "zh": ["质量差", "劣质", "容易坏", "做工粗糙", "不耐用", "故障", "坏了", "掉漆", "脱胶", "断裂"],
     },
     "function": {
         "en": ["doesn't work", "not working", "malfunction", "missing feature", "can't", "won't", "failed", "useless"],
-        "zh": ["notWork", "Fault", "FeatureMissing", "Cannot", "Failed", "Useless"],
+        "zh": ["不能用", "失灵", "无法使用", "功能缺失", "没用", "失败", "不管用", "不好用", "反应慢"],
     },
     "design": {
         "en": ["ugly", "looks cheap", "bulky", "heavy", "uncomfortable", "awkward", "hard to use", "confusing"],
-        "zh": ["ugly", "Looks cheap", "clumsy heavy ", " heavy ", "Uncomfortable", "Hard to use", "Complex"],
+        "zh": ["难看", "廉价感", "笨重", "沉重", "不舒服", "反人类设计", "难用", "操作复杂", "手感差"],
     },
     "size": {
         "en": ["too small", "too big", "wrong size", "doesn't fit", "smaller than expected", "bigger than"],
-        "zh": [" too  small ", " too  big ", "Sizenot for ", "Not suitable"],
+        "zh": ["太小", "太大", "尺码不准", "不合适", "尺寸偏小", "尺寸偏大", "装不下"],
     },
     "shipping": {
         "en": ["late", "damaged", "wrong item", "missing parts", "packaging"],
-        "zh": ["late to ", "loss bad ", "Sent wrong", "Missing parts", "Packaging"],
+        "zh": ["发货慢", "物流破损", "发错货", "缺件", "漏发", "包装简陋", "快递慢"],
     },
     "value": {
         "en": ["overpriced", "not worth", "waste of money", "rip off", "too expensive"],
-        "zh": [" too expensive", "notValue", "Waste money", "trap"],
+        "zh": ["太贵", "不值", "智商税", "浪费钱", "性价比低", "坑人", "溢价高"],
     },
 }
 
 SELLING_POINT_KEYWORDS = {
     "quality": {
         "en": ["solid", "sturdy", "durable", "well made", "high quality", "premium", "excellent", "perfect"],
-        "zh": ["Sturdy", "Durable", "Workmanship good ", "HighQuality", "Quality", "Perfect"],
+        "zh": ["结实", "耐用", "做工扎实", "高品质", "做工精细", "质感好", "用料足", "高级"],
     },
     "function": {
         "en": ["works great", "works perfectly", "easy to use", "convenient", "efficient", "powerful", "fast"],
-        "zh": [" good use", "Convenient", "Higheffect", "strong big ", " fast "],
+        "zh": ["非常好用", "操作简单", "方便快捷", "高效", "动力强", "反应迅速", "省心", "实用"],
     },
     "design": {
         "en": ["beautiful", "sleek", "stylish", "modern", "compact", "lightweight", "elegant"],
-        "zh": ["Beautiful", "Timeyet", "Modern", " small clever", " light easy", "Elegant"],
+        "zh": ["颜值高", "时尚", "现代感", "小巧便携", "轻便", "优雅", "好看", "设计感强"],
     },
     "value": {
         "en": ["great value", "worth it", "good price", "affordable", "best purchase", "recommend"],
-        "zh": ["Value ", "Value for money", "Recommended", "Worth it"],
+        "zh": ["超值", "性价比高", "物美价廉", "物超所值", "良心价", "值得买", "强烈推荐"],
     },
     "service": {
         "en": ["great service", "fast shipping", "well packaged", "responsive seller"],
-        "zh": ["Service good ", "Shipping fast ", "Packaging good ", "SellerResponse fast "],
+        "zh": ["服务周到", "发货迅速", "包装严实", "客服响应快", "售后好", "顺丰包邮"],
     },
 }
 

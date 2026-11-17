@@ -70,8 +70,8 @@ POSITIVE_KEYWORDS = {
         "worth", "impressed", "reliable", "favorite", "brilliant", "superb"
     ],
     "zh": [
-        "Like", " very  good ", "great", "Excellent", "Perfect", " most  good ", "Recommended", "Satisfied", "Quality good ",
-        "Value ", "Impressive", "Canrely", " most love", "Excellent"
+        "喜欢", "很好", "太棒了", "优秀", "完美", "最好", "推荐", "满意", "质量好",
+        "超值", "惊艳", "靠谱", "最爱", "给力", "性价比高", "好用", "值得购买"
     ]
 }
 
@@ -82,8 +82,8 @@ NEGATIVE_KEYWORDS = {
         "never", "refund", "complaint", "problem", "issue", "sucks"
     ],
     "zh": [
-        "Hate", "Terrible", "difference", " most difference", " bad ", "Disappointed", "Waste", "Scammer", "Counterfeit",
-        "Poor", " bad  ", "Useless", " after regret", "Avoid", "Refund", "Complaint", "Issue"
+        "讨厌", "糟糕", "差评", "最差", "劣质", "失望", "浪费", "骗子", "假货",
+        "破损", "不好用", "没用", "后悔", "避坑", "退款", "投诉", "踩雷", "故障", "差劲"
     ]
 }
 
@@ -93,8 +93,8 @@ CRISIS_KEYWORDS = {
         "safety", "warning", "banned", "illegal", "death", "injury", "toxic"
     ],
     "zh": [
-        "Lawsuit", "Recall", "Investigation", "Fraud", "Scandal", "Danger", "safe all ", "Warning",
-        "Prohibited", "Illegal", "Death", "Harm", " has toxic"
+        "起诉", "召回", "立案调查", "欺诈", "丑闻", "危险", "安全隐患", "严重警告",
+        "封禁", "违法", "死亡", "伤害", "有毒", "致癌", "假一赔十", "暴雷"
     ]
 }
 
@@ -401,9 +401,9 @@ def generate_alerts(mentions: List[Mention], metrics: BrandMetrics) -> List[Aler
         alerts.append(Alert(
             level=AlertLevel.CRITICAL,
             title="Potential Crisis Detected",
-            title_zh="potential in Crisis Detection",
+            title_zh="检测到潜在品牌舆情危机",
             description=f"Found {len(crisis_mentions)} mention(s) with crisis keywords",
-            description_zh=f"Found {len(crisis_mentions)} Contains crisisKeywordsmention and ",
+            description_zh=f"发现 {len(crisis_mentions)} 条提及包含违规、欺诈或安全隐患等危机特征词",
             trigger="crisis_keywords detected",
         ))
     
@@ -453,7 +453,7 @@ def monitor_brand(
     neg_pct = metrics.negative_count / metrics.total_mentions * 100 if metrics.total_mentions > 0 else 0
     
     summary = f"📊 {metrics.total_mentions} mentions | 😊 {pos_pct:.0f}% positive | 😠 {neg_pct:.0f}% negative | ⚠️ {len(alerts)} alerts"
-    summary_zh = f"📊 {metrics.total_mentions} Item mention and  | 😊 {pos_pct:.0f}% Positive | 😠 {neg_pct:.0f}% Negative | ⚠️ {len(alerts)} itemAlert"
+    summary_zh = f"📊 追踪到 {metrics.total_mentions} 条品牌提及 | 😊 正面讨论 {pos_pct:.0f}% | 😠 负面评价 {neg_pct:.0f}% | ⚠️ {len(alerts)} 条舆情预警"
     
     return MonitoringReport(
         brand_name=brand_name,
@@ -480,23 +480,23 @@ def format_report(report: MonitoringReport, lang: str = "en") -> str:
     
     if lang == "zh":
         lines = [
-            "📡 **Brand MonitoringReport**",
+            "📡 **品牌声誉与社交媒体舆情监控报告**",
             "",
-            f"**Brand**: {report.brand_name}",
-            f"**MonitoringweeksPeriod**: {report.period_start.strftime('%Y-%m-%d')} ~ {report.period_end.strftime('%Y-%m-%d')}",
+            f"**品牌名称**: {report.brand_name}",
+            f"**监控周期**: {report.period_start.strftime('%Y-%m-%d')} ~ {report.period_end.strftime('%Y-%m-%d')}",
             "",
             "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
             "",
-            "## 📊 OverallMetrics",
+            "## 📊 核心指标概览",
             "",
-            f"| Metrics | Value |",
-            f"|------|------|",
-            f"| Total mention and  | {m.total_mentions} |",
-            f"| Positivemention and  | {m.positive_count} ({m.positive_count/m.total_mentions*100:.0f}%) |" if m.total_mentions > 0 else f"| Positivemention and  | 0 |",
-            f"| Negativemention and  | {m.negative_count} ({m.negative_count/m.total_mentions*100:.0f}%) |" if m.total_mentions > 0 else f"| Negativemention and  | 0 |",
-            f"| Neutralmention and  | {m.neutral_count} |",
-            f"| AverageSentiment score | {m.avg_sentiment_score} |",
-            f"| Total engagement | {m.total_engagement:,} |",
+            f"| 核心指标 | 当前数值 |",
+            f"|----------|----------|",
+            f"| 总声量提及数 | {m.total_mentions} 条 |",
+            f"| 正面评价讨论 | {m.positive_count} 条 ({m.positive_count/m.total_mentions*100:.0f}%) |" if m.total_mentions > 0 else f"| 正面评价讨论 | 0 条 |",
+            f"| 负面客诉/舆情 | {m.negative_count} 条 ({m.negative_count/m.total_mentions*100:.0f}%) |" if m.total_mentions > 0 else f"| 负面客诉/舆情 | 0 条 |",
+            f"| 中性声量提及 | {m.neutral_count} 条 |",
+            f"| 平均情感得分 | {m.avg_sentiment_score} |",
+            f"| 累计社交互动量 | {m.total_engagement:,} 次 |",
             "",
         ]
         
@@ -505,7 +505,7 @@ def format_report(report: MonitoringReport, lang: str = "en") -> str:
             lines.extend([
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
                 "",
-                "## ⚠️ Alert",
+                "## ⚠️ 舆情危机预警",
                 "",
             ])
             for alert in report.alerts:
@@ -519,12 +519,12 @@ def format_report(report: MonitoringReport, lang: str = "en") -> str:
             lines.extend([
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
                 "",
-                "## 📱 PlatformDistribution",
+                "## 📱 平台分布构成",
                 "",
             ])
             for platform, count in sorted(m.platform_distribution.items(), key=lambda x: -x[1]):
                 pct = count / m.total_mentions * 100 if m.total_mentions > 0 else 0
-                lines.append(f"- **{platform}**: {count} ({pct:.0f}%)")
+                lines.append(f"- **{platform}**: {count} 条 ({pct:.0f}%)")
             lines.append("")
         
         # PopularKeywords
@@ -532,35 +532,35 @@ def format_report(report: MonitoringReport, lang: str = "en") -> str:
             lines.extend([
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
                 "",
-                "## 🔑 PopularKeywords",
+                "## 🔑 热门讨论关键词",
                 "",
                 ", ".join([f"`{word}` ({count})" for word, count in m.top_keywords[:8]]),
                 "",
             ])
         
-        # Top Positivemention and 
+        # Top Positive
         if report.top_positive:
             lines.extend([
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
                 "",
-                "## 😊 PopularPositivemention and ",
+                "## 😊 高互动正面讨论",
                 "",
             ])
             for i, mention in enumerate(report.top_positive[:3], 1):
-                lines.append(f"**{i}. [{mention.platform.value}]** Interactive: {mention.engagement:,}")
+                lines.append(f"**{i}. [{mention.platform.value}]** 互动量: {mention.engagement:,}")
                 lines.append(f"   \"{mention.content[:80]}...\"")
                 lines.append("")
         
-        # Top Negativemention and 
+        # Top Negative
         if report.top_negative:
             lines.extend([
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
                 "",
-                "## 😠  need AttentionNegativemention and ",
+                "## 😠 重点负面客诉 (需立即跟进)",
                 "",
             ])
             for i, mention in enumerate(report.top_negative[:3], 1):
-                lines.append(f"**{i}. [{mention.platform.value}]** Interactive: {mention.engagement:,}")
+                lines.append(f"**{i}. [{mention.platform.value}]** 互动量: {mention.engagement:,}")
                 lines.append(f"   \"{mention.content[:80]}...\"")
                 lines.append("")
         

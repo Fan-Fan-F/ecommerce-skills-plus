@@ -17,7 +17,7 @@ This is the international expansion layer. It tells you **where to expand, how t
 npx skills add nexscope-ai/eCommerce-Skills --skill ecommerce-growth-strategy -g
 ```
 
-**Supported platforms:** Amazon, Shopify, WooCommerce, Walmart, TikTok Shop, Etsy, eBay, BigCommerce, and multi-channel sellers.
+**Supported platforms:** Amazon, Shopify, WooCommerce, Walmart, TikTok Shop, Temu (Full & Semi-Managed), Etsy, eBay, BigCommerce, and multi-channel sellers.
 
 Built by [Nexscope](https://www.nexscope.ai/?co-from=skill8) — your AI assistant for smarter e-commerce decisions.
 
@@ -212,6 +212,8 @@ Choose the right fulfillment model based on order volume, product characteristic
 | **Direct Shipping** | Testing new markets, low volume (<50 orders/mo) | $15-40+ | 7-21 days | None | Low |
 | **Local 3PL** | Established markets, 100+ orders/mo | $5-15 | 1-5 days | Medium (pre-stock) | Medium |
 | **Platform Fulfillment** (FBA/FBT/WFS) | Marketplace sellers, high volume | $3-12 + fees | 1-3 days | Medium (pre-stock) | Low-Medium |
+| **Temu Full-Managed** | Factory/Source suppliers, bulk domestic dispatch | Domestic freight + margin cut | 5-10 days (air) | Low (domestic stock) | Low |
+| **Temu Semi-Managed** | Overseas warehouse stock, fast local delivery | $4-10 + warehouse | 2-5 days | Medium (overseas stock) | Medium |
 | **Dropshipping / POD** | Testing products, zero inventory risk | $0 + lower margins | 5-15 days | None | Low |
 | **Cross-Border Consolidation** | Multi-market, medium volume | $8-20 | 3-10 days | Low-Medium | Medium |
 
@@ -688,6 +690,11 @@ npx skills add nexscope-ai/Amazon-Skills --skill tariff-calculator-amazon -g
 **Amazon listing optimization (keyword-optimized listings for international marketplaces):**
 ```bash
 npx skills add nexscope-ai/Amazon-Skills --skill amazon-listing-optimization -g
+```
+
+**Temu margin & supply pricing calculator (Full-managed supply pricing, semi-managed overseas fulfillment):**
+```bash
+npx skills add nexscope-ai/eCommerce-Skills --skill profit-margin-calculator-temu -g
 ```
 
 More e-commerce skills: [nexscope-ai/eCommerce-Skills](https://github.com/nexscope-ai/eCommerce-Skills)
